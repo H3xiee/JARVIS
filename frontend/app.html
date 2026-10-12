@@ -3929,8 +3929,6 @@ body.chat-panel-collapsed #gods-eye-bottom-dock {
 /* Floating Inspect Card */
 #globe-inspect-card {
   position: fixed;
-  bottom: 24px;
-  left: 24px;
   width: 320px;
   max-width: 85vw;
   background: rgba(8, 9, 12, 0.94);
@@ -3939,7 +3937,7 @@ body.chat-panel-collapsed #gods-eye-bottom-dock {
   border: 1px solid rgba(0, 240, 255, 0.35);
   border-left: 3px solid #00F0FF;
   border-radius: 6px;
-  padding: 12px 14px;
+  padding: 0;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.85);
   z-index: 185;
   display: none;
@@ -3948,7 +3946,7 @@ body.chat-panel-collapsed #gods-eye-bottom-dock {
   transition: opacity 0.2s ease;
 }
 #globe-inspect-card.visible {
-  display: block;
+  display: flex;
 }
 
 /* Collapsible Chat & Input Panel System */
@@ -4760,98 +4758,11 @@ body.voiceos-mode #jarvis-hud-notch-wrapper {
       </div>
     </div>
 
-    <!-- Real God's Eye Tactical Radio Scanner (Image 4 Parity) -->
-    <div class="globe-hud-card" id="globe-radio-card">
-      <div id="radio-drag-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:4px; cursor:move; user-select:none;">
-        <div style="display:flex; align-items:center; gap:6px;">
-          <span style="font-size:11px; color:#8A8D91;" title="Drag anywhere">⠿</span>
-          <span style="font-size:10px; font-weight:800; color:#00F0FF; letter-spacing:1px;">TACTICAL RADIO SCANNER</span>
-        </div>
-        <div style="display:flex; align-items:center; gap:6px;">
-          <button onclick="window.resetTacticalLayout()" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.2); color:#8A8D91; font-size:8.5px; font-weight:700; padding:1px 5px; border-radius:3px; cursor:pointer;" title="Reset Panel Layout">⟲ RESET</button>
-          <span id="radio-stream-badge" style="font-size:8.5px; font-weight:700; color:#EF4444; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.4); padding:1px 5px; border-radius:3px; letter-spacing:0.5px;">OFFLINE</span>
-        </div>
-      </div>
-      <div class="radio-tuner-box">
-        <!-- Tag Selector Bar -->
-        <div class="radio-tag-bar">
-          <button class="radio-disable-btn" id="radio-disable-btn" onclick="window.stopRadioAudio()">DISABLE</button>
-          <select class="radio-tag-select" id="radio-category-select" onchange="window.filterRadioByCategory(this.value)">
-            <option value="atc">● Flight Comms / ATC & Aviation</option>
-            <option value="scanner">● Police / Fire / EMS Scanners</option>
-            <option value="marine">● Marine / Coast Guard VHF</option>
-            <option value="weather">● Weather & Emergency (NOAA)</option>
-            <option value="news">● News & World Service</option>
-            <option value="cyber">● Cyber News Intel Feed (RSS)</option>
-          </select>
-          <select class="radio-tag-select" id="radio-country-select" onchange="window.filterRadioByCountry(this.value)" style="margin-left:4px; max-width:65px;">
-            <option value="ALL">ALL</option>
-          </select>
-        </div>
-
-        <!-- Station Info Card -->
-        <div class="radio-station-card" id="radio-station-card-box">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <div class="radio-station-title" id="radio-now-title">NASA Mission Control & Space Comms</div>
-            <span id="radio-now-country" style="font-size:8px; font-weight:700; color:#38BDF8; background:rgba(56,189,248,0.15); padding:1px 4px; border-radius:2px; margin-left:4px;">US</span>
-          </div>
-          <div class="radio-station-telemetry" id="radio-now-telemetry">Houston/KSC • US / MP3 • 128 kbps</div>
-          <div class="radio-station-tags" id="radio-now-tags">TAGS • spaceflight • air-to-ground • mission control • nasa</div>
-          <div class="radio-station-source" id="radio-now-source" style="font-size:8px; color:#94A3B8; margin-top:3px;">SOURCE • <a id="radio-now-source-link" href="https://somafm.com/missioncontrol/" target="_blank" style="color:#38BDF8; text-decoration:none;">SomaFM</a></div>
-          <div class="radio-station-terms" id="radio-now-terms" style="font-size:8px; color:#64748B; margin-top:3px; line-height:1.25; border-top:1px solid rgba(255,255,255,0.05); padding-top:3px;">TERMS • SomaFM: Listener-supported non-commercial internet radio; authentic NASA spaceflight air-to-ground audio.</div>
-        </div>
-
-        <!-- Cyber News Panel (Shown when cyber category is selected) -->
-        <div id="cyber-news-panel" style="display:none; margin:6px 0; background:rgba(15,23,42,0.65); border:1px solid rgba(56,189,248,0.25); border-radius:4px; padding:6px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:3px;">
-            <span style="font-size:9px; font-weight:800; color:#38BDF8; letter-spacing:0.5px;">CYBER THREAT ADVISORIES</span>
-            <button onclick="window.fetchCyberNews()" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); color:#8A8D91; font-size:7.5px; padding:1px 4px; border-radius:2px; cursor:pointer;">⟲ REFRESH</button>
-          </div>
-          <div id="cyber-news-list" style="max-height:130px; overflow-y:auto; display:flex; flex-direction:column; gap:5px;">
-            <div style="font-size:8.5px; color:#94A3B8;">Loading advisories from CISA feed...</div>
-          </div>
-        </div>
-
-        <!-- Tuner Dial Box with Frequency Scale and Orange Needle -->
-        <div class="radio-dial-box" id="radio-dial-container">
-          <div class="radio-dial-header">
-            <span id="radio-band-label">AVIATION / AIR TRAFFIC BAND</span>
-            <span id="radio-channel-num" style="color:#FF9D2E;">CH 12</span>
-          </div>
-          <div class="radio-dial-scale" id="radio-dial-scale">
-            <div class="radio-dial-tick"><div class="radio-dial-tick-mark"></div><span>10</span></div>
-            <div class="radio-dial-tick"><div class="radio-dial-tick-mark"></div><span>12</span></div>
-            <div class="radio-dial-tick"><div class="radio-dial-tick-mark"></div><span>14</span></div>
-            <div class="radio-dial-tick"><div class="radio-dial-tick-mark"></div><span>16</span></div>
-            <div class="radio-dial-tick"><div class="radio-dial-tick-mark"></div><span>18</span></div>
-            <div class="radio-dial-needle" id="radio-dial-needle" style="left:50%;"></div>
-          </div>
-          <div class="radio-dial-footer">
-            <span id="radio-dial-st-name">NASA Mission Control...</span>
-            <span style="color:#38BDF8;">SNAPS TO AVAILABLE ST.</span>
-          </div>
-        </div>
-
-        <!-- Primary Action Buttons -->
-        <div class="radio-buttons-grid">
-          <button class="radio-btn-action" onclick="window.cycleRadioStation(-1)">PREV</button>
-          <button class="radio-btn-action primary" id="radio-toggle-btn" onclick="window.toggleRadioPlayback()">PLAY</button>
-          <button class="radio-btn-action" onclick="window.cycleRadioStation(1)">NEXT</button>
-          <button class="radio-btn-action" onclick="window.stopRadioAudio()">STOP</button>
-        </div>
-
-        <!-- Volume Bar -->
-        <div style="display:flex; justify-content:space-between; align-items:center; padding:2px 4px; font-size:9px; color:#8A8D91;">
-          <span>VOLUME</span>
-          <div style="display:flex; align-items:center; gap:8px;">
-            <input type="range" id="radio-volume-slider" min="0" max="1" step="0.05" value="0.8" oninput="window.setRadioVolume(this.value)" style="width:90px; accent-color:#00F0FF; cursor:pointer;" />
-            <span id="radio-vol-percent" style="color:#00F0FF; font-weight:700; width:28px; text-align:right;">80%</span>
-          </div>
-        </div>
-
-        <audio id="globe-radio-audio" preload="none"></audio>
-      </div>
-      <div class="tactical-resize-handle" title="Resize Radio Scanner">◢</div>
+    <!-- Dedicated Radio Launcher in OSINT rail -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; padding-top:6px; border-top:1px solid rgba(255,255,255,0.06);">
+      <button class="globe-hud-btn" onclick="window.TacticalWindowManager.toggleWindow('radio')" style="flex:1; font-weight:700; color:#00F0FF; border-color:rgba(0,240,255,0.4); padding:6px;">
+        📻 TACTICAL RADIO SCANNER
+      </button>
     </div>
 
   </div> <!-- closes globe-hud-scroll-body -->
@@ -4874,51 +4785,82 @@ body.voiceos-mode #jarvis-hud-notch-wrapper {
 </div>
 
 <!-- Floating Geolocation OSINT Analysis Card -->
-<div id="geolocation-results-card" style="display:none; position:fixed; left:24px; top:120px; width:380px; max-width:calc(100vw - 32px); max-height:calc(100vh - 140px); background:#0B0E14; border:1px solid rgba(0,240,255,0.45); border-left:3px solid #00F0FF; border-radius:6px; box-shadow:0 8px 32px rgba(0,0,0,0.85); z-index:1350; flex-direction:column; overflow:hidden; font-family:var(--font); box-sizing:border-box;">
-  <div id="geolocation-results-drag-header" style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:rgba(0,240,255,0.08); border-bottom:1px solid rgba(0,240,255,0.25); cursor:move; user-select:none;">
-    <div style="display:flex; align-items:center; gap:6px;">
-      <span style="font-size:11px; color:#8A8D91;" title="Drag anywhere">⠿</span>
-      <span style="color:#00F0FF; font-size:13px;">🌐</span>
-      <span style="font-size:11px; font-weight:700; color:#FFFFFF; letter-spacing:0.05em;">GEOLOCATION OSINT ANALYSIS</span>
+<div class="tactical-window-panel" id="geolocation-results-card" data-panel="geolocation" style="display:none; position:fixed; left:24px; top:120px; width:380px; max-width:calc(100vw - 32px); max-height:calc(100vh - 140px); background:#0B0E14; border:1px solid rgba(0,240,255,0.45); border-left:3px solid #00F0FF; border-radius:6px; box-shadow:0 8px 32px rgba(0,0,0,0.85); z-index:1350; flex-direction:column; overflow:hidden; font-family:var(--font); box-sizing:border-box;">
+  <div class="win-resize-handle win-resize-t" data-dir="t"></div>
+  <div class="win-resize-handle win-resize-r" data-dir="r"></div>
+  <div class="win-resize-handle win-resize-b" data-dir="b"></div>
+  <div class="win-resize-handle win-resize-l" data-dir="l"></div>
+  <div class="win-resize-handle win-resize-tl" data-dir="tl"></div>
+  <div class="win-resize-handle win-resize-tr" data-dir="tr"></div>
+  <div class="win-resize-handle win-resize-bl" data-dir="bl"></div>
+  <div class="win-resize-handle win-resize-br" data-dir="br"></div>
+
+  <div class="tactical-win-header">
+    <div class="tactical-win-title-group">
+      <span class="tactical-win-drag-dots" title="Drag to reposition">⠿</span>
+      <span class="tactical-win-icon">🌐</span>
+      <span class="tactical-win-title">GEOLOCATION OSINT ANALYSIS</span>
     </div>
-    <div style="display:flex; align-items:center; gap:6px;">
-      <button onclick="window.resetTacticalLayout()" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.2); color:#8A8D91; font-size:8.5px; font-weight:700; padding:1px 5px; border-radius:3px; cursor:pointer;" title="Reset Panel Layout">⟲ RESET</button>
-      <button onclick="window.closeGeolocationCard()" style="background:transparent; border:none; color:#8A8D91; cursor:pointer; font-size:14px; padding:2px;">✕</button>
+    <div class="tactical-win-controls">
+      <button class="tactical-win-btn" onclick="window.TacticalWindowManager.scaleWindow('geolocation', -0.1)" title="Scale text smaller (A-)">A-</button>
+      <button class="tactical-win-btn" onclick="window.TacticalWindowManager.scaleWindow('geolocation', 0.1)" title="Scale text larger (A+)">A+</button>
+      <button class="tactical-win-btn" onclick="window.TacticalWindowManager.minimizeWindow('geolocation')" title="Minimize (_)">_</button>
+      <button class="tactical-win-btn close" onclick="window.closeGeolocationCard()" title="Close (X)">✕</button>
     </div>
   </div>
-  <div id="geolocation-results-body" style="padding:10px 12px; overflow-y:auto; max-height:calc(100vh - 200px); display:flex; flex-direction:column; gap:10px; font-size:11px; color:#D1D5DB; box-sizing:border-box;">
+  <div class="tactical-win-body" id="geolocation-results-body" style="padding:10px 12px; overflow-y:auto; max-height:calc(100vh - 200px); display:flex; flex-direction:column; gap:10px; font-size:11px; color:#D1D5DB; box-sizing:border-box;">
   </div>
-  <div class="tactical-resize-handle" title="Resize Results Card">◢</div>
 </div>
 
 <!-- Floating Target Inspection Card for Flights, Cameras, Radio Pins -->
-<div id="globe-inspect-card">
-  <div id="inspect-card-drag-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:6px; cursor:move; user-select:none;">
-    <div style="display:flex; align-items:center; gap:6px;">
-      <span style="font-size:11px; color:#8A8D91;" title="Drag anywhere">⠿</span>
-      <span id="inspect-card-icon" style="color:#00F0FF; font-size:14px;">✈</span>
-      <span id="inspect-card-title" style="font-size:11.5px; font-weight:700; color:#FFFFFF;">CONTACT INSPECTION</span>
+<div class="tactical-window-panel" id="globe-inspect-card" data-panel="inspect" style="display:none;">
+  <div class="win-resize-handle win-resize-t" data-dir="t"></div>
+  <div class="win-resize-handle win-resize-r" data-dir="r"></div>
+  <div class="win-resize-handle win-resize-b" data-dir="b"></div>
+  <div class="win-resize-handle win-resize-l" data-dir="l"></div>
+  <div class="win-resize-handle win-resize-tl" data-dir="tl"></div>
+  <div class="win-resize-handle win-resize-tr" data-dir="tr"></div>
+  <div class="win-resize-handle win-resize-bl" data-dir="bl"></div>
+  <div class="win-resize-handle win-resize-br" data-dir="br"></div>
+
+  <div class="tactical-win-header">
+    <div class="tactical-win-title-group">
+      <span class="tactical-win-drag-dots" title="Drag to reposition">⠿</span>
+      <span class="tactical-win-icon" id="inspect-card-icon">✈</span>
+      <span class="tactical-win-title" id="inspect-card-title">CONTACT INSPECTION</span>
     </div>
-    <div style="display:flex; align-items:center; gap:6px;">
-      <button onclick="window.resetTacticalLayout()" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.2); color:#8A8D91; font-size:8.5px; font-weight:700; padding:1px 5px; border-radius:3px; cursor:pointer;" title="Reset Panel Layout">⟲ RESET</button>
-      <button onclick="window.closeGlobeInspectCard()" style="background:transparent; border:none; color:#8A8D91; cursor:pointer; font-size:14px; padding:2px;">✕</button>
+    <div class="tactical-win-controls">
+      <button class="tactical-win-btn" onclick="window.TacticalWindowManager.scaleWindow('inspect', -0.1)" title="Scale text smaller (A-)">A-</button>
+      <button class="tactical-win-btn" onclick="window.TacticalWindowManager.scaleWindow('inspect', 0.1)" title="Scale text larger (A+)">A+</button>
+      <button class="tactical-win-btn" onclick="window.TacticalWindowManager.minimizeWindow('inspect')" title="Minimize (_)">_</button>
+      <button class="tactical-win-btn close" onclick="window.closeGlobeInspectCard()" title="Close (X)">✕</button>
     </div>
   </div>
-  <div id="inspect-card-body" style="font-size:10.5px; color:#D1D5DB; display:flex; flex-direction:column; gap:4px; line-height:1.4;">
-    <!-- Populated dynamically on entity click -->
+  <div class="tactical-win-body" style="padding:10px 12px; max-height:360px; overflow-y:auto;">
+    <div id="inspect-card-body" style="font-size:10.5px; color:#D1D5DB; display:flex; flex-direction:column; gap:4px; line-height:1.4;">
+      <!-- Populated dynamically on entity click -->
+    </div>
+    <div style="margin-top:10px; display:flex; gap:6px;">
+      <button class="globe-hud-btn" id="inspect-action-btn" style="flex:1; background:rgba(0,240,255,0.15); border-color:#00F0FF; color:#00F0FF;" onclick="window.lockInspectTarget()">LOCK TARGET</button>
+      <button class="globe-hud-btn" style="flex:0.6;" onclick="window.closeGlobeInspectCard()">CLOSE</button>
+    </div>
   </div>
-  <div style="margin-top:10px; display:flex; gap:6px;">
-    <button class="globe-hud-btn" id="inspect-action-btn" style="flex:1; background:rgba(0,240,255,0.15); border-color:#00F0FF; color:#00F0FF;" onclick="window.lockInspectTarget()">LOCK TARGET</button>
-    <button class="globe-hud-btn" style="flex:0.6;" onclick="window.closeGlobeInspectCard()">CLOSE</button>
-  </div>
-  <div class="tactical-resize-handle" title="Resize Inspect Card">◢</div>
 </div>
 
 <!-- Auto-Floating Ground Media Tactical Cards (Nearest ~6 Pins Anchored in Real-Time, Tier 2 Cards) -->
 <div id="ground-media-auto-floating-cards" style="position:fixed; inset:0; pointer-events:none; z-index:150; overflow:hidden;"></div>
 
 <!-- Open-Source Ground Media & Eyewitness Tactical Floating Callout (God's Eye Style, Tier 3 Panel) -->
-<div id="ground-media-dock-panel" class="ground-media-callout-card" style="position:fixed; z-index:1450; display:none; width:360px; max-width:calc(100vw - 32px); font-family:var(--mono); color:#E6E6E6; user-select:none; pointer-events:auto;">
+<div id="ground-media-dock-panel" class="ground-media-callout-card tactical-window-panel" data-panel="ground_media" style="position:fixed; z-index:1450; display:none; width:360px; max-width:calc(100vw - 32px); font-family:var(--mono); color:#E6E6E6; user-select:none; pointer-events:auto;">
+  <div class="win-resize-handle win-resize-t" data-dir="t"></div>
+  <div class="win-resize-handle win-resize-r" data-dir="r"></div>
+  <div class="win-resize-handle win-resize-b" data-dir="b"></div>
+  <div class="win-resize-handle win-resize-l" data-dir="l"></div>
+  <div class="win-resize-handle win-resize-tl" data-dir="tl"></div>
+  <div class="win-resize-handle win-resize-tr" data-dir="tr"></div>
+  <div class="win-resize-handle win-resize-bl" data-dir="bl"></div>
+  <div class="win-resize-handle win-resize-br" data-dir="br"></div>
+
   <!-- SVG Leader Line from Card Edge down to Ground Pin Anchor -->
   <svg class="ground-media-leader" style="position:absolute; top:0; left:0; width:1px; height:1px; overflow:visible; pointer-events:none;">
     <path d="" fill="none" stroke="#00F0FF" stroke-width="1.5" stroke-dasharray="3 3" opacity="0.85" />
@@ -4926,18 +4868,20 @@ body.voiceos-mode #jarvis-hud-notch-wrapper {
   </svg>
 
   <div class="ground-media-callout-body" style="position:relative; background:rgba(4,10,18,0.95); border:1px solid rgba(0,240,255,0.45); border-radius:8px; padding:12px; box-shadow:0 18px 50px rgba(0,0,0,0.85), 0 0 20px rgba(0,240,255,0.18); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);">
-    <div id="ground-media-drag-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:6px; cursor:move; user-select:none;">
-      <div style="display:flex; align-items:center; gap:7px;">
-        <span style="font-size:11px; color:#8A8D91;" title="Drag anywhere">⠿</span>
+    <div class="tactical-win-header">
+      <div class="tactical-win-title-group">
+        <span class="tactical-win-drag-dots" title="Drag to reposition">⠿</span>
         <span style="font-size:13px; color:#00F0FF;" id="ground-media-dock-icon">📹</span>
         <span style="font-size:10px; font-weight:800; color:#FFFFFF; letter-spacing:1px;" id="ground-media-dock-category">OSINT GROUND INTEL</span>
         <span id="ground-media-dock-platform" style="font-size:8px; font-weight:700; color:#00F0FF; background:rgba(0,240,255,0.12); border:1px solid rgba(0,240,255,0.35); padding:1px 5px; border-radius:3px;">YOUTUBE</span>
       </div>
-      <div style="display:flex; align-items:center; gap:6px;">
-        <button onclick="window.resetTacticalLayout()" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.2); color:#8A8D91; font-size:8.5px; font-weight:700; padding:1px 5px; border-radius:3px; cursor:pointer;" title="Reset Panel Layout">⟲ RESET</button>
+      <div class="tactical-win-controls">
         <!-- Audio Mute/Unmute Toggle Button -->
-        <button id="ground-media-dock-mute-btn" onclick="window.toggleGroundMediaMute()" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:#A1A1AA; font-family:var(--mono); font-size:8.5px; font-weight:700; padding:2px 6px; border-radius:3px; cursor:pointer;" title="Toggle Audio (Muted by default)">🔇 MUTED</button>
-        <button onclick="window.closeGroundMediaCard()" style="background:transparent; border:none; color:#8A8D91; cursor:pointer; font-size:14px; padding:2px; line-height:1;" title="Dismiss Media Card (Escape)">✕</button>
+        <button id="ground-media-dock-mute-btn" onclick="window.toggleGroundMediaMute()" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:#A1A1AA; font-family:var(--mono); font-size:8px; font-weight:700; padding:1px 4px; border-radius:3px; cursor:pointer;" title="Toggle Audio (Muted by default)">🔇 MUTED</button>
+        <button class="tactical-win-btn" onclick="window.TacticalWindowManager.scaleWindow('ground_media', -0.1)" title="Scale text smaller (A-)">A-</button>
+        <button class="tactical-win-btn" onclick="window.TacticalWindowManager.scaleWindow('ground_media', 0.1)" title="Scale text larger (A+)">A+</button>
+        <button class="tactical-win-btn" onclick="window.TacticalWindowManager.minimizeWindow('ground_media')" title="Minimize (_)">_</button>
+        <button class="tactical-win-btn close" onclick="window.closeGroundMediaCard()" title="Close (X)">✕</button>
       </div>
     </div>
 
@@ -5425,6 +5369,138 @@ body.voiceos-mode #jarvis-hud-notch-wrapper {
         <button class="globe-hud-btn" onclick="window.updateDiagnosticsTelemetry(true)" style="padding:6px 10px; font-size:9px;" title="Refresh now">
           ⟲ REFRESH
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. OSINT TACTICAL RADIO SCANNER WINDOW -->
+  <div class="tactical-window-panel" id="globe-radio-card" data-panel="radio" style="display:none;">
+    <div class="win-resize-handle win-resize-t" data-dir="t"></div>
+    <div class="win-resize-handle win-resize-r" data-dir="r"></div>
+    <div class="win-resize-handle win-resize-b" data-dir="b"></div>
+    <div class="win-resize-handle win-resize-l" data-dir="l"></div>
+    <div class="win-resize-handle win-resize-tl" data-dir="tl"></div>
+    <div class="win-resize-handle win-resize-tr" data-dir="tr"></div>
+    <div class="win-resize-handle win-resize-bl" data-dir="bl"></div>
+    <div class="win-resize-handle win-resize-br" data-dir="br"></div>
+
+    <div class="tactical-win-header">
+      <div class="tactical-win-title-group">
+        <span class="tactical-win-drag-dots" title="Drag to reposition">⠿</span>
+        <span class="tactical-win-icon">📻</span>
+        <span class="tactical-win-title">TACTICAL RADIO SCANNER</span>
+        <span class="tactical-win-badge" id="radio-stream-badge">OFFLINE</span>
+      </div>
+      <div class="tactical-win-controls">
+        <button class="tactical-win-btn" onclick="window.TacticalWindowManager.scaleWindow('radio', -0.1)" title="Scale text smaller (A-)">A-</button>
+        <button class="tactical-win-btn" onclick="window.TacticalWindowManager.scaleWindow('radio', 0.1)" title="Scale text larger (A+)">A+</button>
+        <button class="tactical-win-btn" onclick="window.TacticalWindowManager.minimizeWindow('radio')" title="Minimize (_)">_</button>
+        <button class="tactical-win-btn close" onclick="window.TacticalWindowManager.closeWindow('radio')" title="Close (X)">✕</button>
+      </div>
+    </div>
+    <div class="tactical-win-body radio-tuner-box" style="padding:10px; max-height:420px; overflow-y:auto;">
+      <!-- Tag Selector Bar -->
+      <div class="radio-tag-bar">
+        <button class="radio-disable-btn" id="radio-disable-btn" onclick="window.stopRadioAudio()">DISABLE</button>
+        <select class="radio-tag-select" id="radio-category-select" onchange="window.filterRadioByCategory(this.value)">
+          <option value="atc">● Flight Comms / ATC & Aviation</option>
+          <option value="scanner">● Police / Fire / EMS Scanners</option>
+          <option value="marine">● Marine / Coast Guard VHF</option>
+          <option value="weather">● Weather & Emergency (NOAA)</option>
+          <option value="news">● News & World Service</option>
+          <option value="cyber">● Cyber News Intel Feed (RSS)</option>
+        </select>
+        <select class="radio-tag-select" id="radio-country-select" onchange="window.filterRadioByCountry(this.value)" style="margin-left:4px; max-width:65px;">
+          <option value="ALL">ALL</option>
+        </select>
+      </div>
+
+      <!-- Station Info Card -->
+      <div class="radio-station-card" id="radio-station-card-box">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div class="radio-station-title" id="radio-now-title">NASA Mission Control & Space Comms</div>
+          <span id="radio-now-country" style="font-size:8px; font-weight:700; color:#38BDF8; background:rgba(56,189,248,0.15); padding:1px 4px; border-radius:2px; margin-left:4px;">US</span>
+        </div>
+        <div class="radio-station-telemetry" id="radio-now-telemetry">Houston/KSC • US / MP3 • 128 kbps</div>
+        <div class="radio-station-tags" id="radio-now-tags">TAGS • spaceflight • air-to-ground • mission control • nasa</div>
+        <div class="radio-station-source" id="radio-now-source" style="font-size:8px; color:#94A3B8; margin-top:3px;">SOURCE • <a id="radio-now-source-link" href="https://somafm.com/missioncontrol/" target="_blank" style="color:#38BDF8; text-decoration:none;">SomaFM</a></div>
+        <div class="radio-station-terms" id="radio-now-terms" style="font-size:8px; color:#64748B; margin-top:3px; line-height:1.25; border-top:1px solid rgba(255,255,255,0.05); padding-top:3px;">TERMS • SomaFM: Listener-supported non-commercial internet radio; authentic NASA spaceflight air-to-ground audio.</div>
+      </div>
+
+      <!-- Tuner Dial Box with Frequency Scale and Orange Needle -->
+      <div class="radio-dial-box" id="radio-dial-container">
+        <div class="radio-dial-header">
+          <span id="radio-band-label">AVIATION / AIR TRAFFIC BAND</span>
+          <span id="radio-channel-num" style="color:#FF9D2E;">CH 12</span>
+        </div>
+        <div class="radio-dial-scale" id="radio-dial-scale">
+          <div class="radio-dial-tick"><div class="radio-dial-tick-mark"></div><span>10</span></div>
+          <div class="radio-dial-tick"><div class="radio-dial-tick-mark"></div><span>12</span></div>
+          <div class="radio-dial-tick"><div class="radio-dial-tick-mark"></div><span>14</span></div>
+          <div class="radio-dial-tick"><div class="radio-dial-tick-mark"></div><span>16</span></div>
+          <div class="radio-dial-tick"><div class="radio-dial-tick-mark"></div><span>18</span></div>
+          <div class="radio-dial-needle" id="radio-dial-needle" style="left:50%;"></div>
+        </div>
+        <div class="radio-dial-footer">
+          <span id="radio-dial-st-name">NASA Mission Control...</span>
+          <span style="color:#38BDF8;">SNAPS TO AVAILABLE ST.</span>
+        </div>
+      </div>
+
+      <!-- Primary Action Buttons -->
+      <div class="radio-buttons-grid">
+        <button class="radio-btn-action" onclick="window.cycleRadioStation(-1)">PREV</button>
+        <button class="radio-btn-action primary" id="radio-toggle-btn" onclick="window.toggleRadioPlayback()">PLAY</button>
+        <button class="radio-btn-action" onclick="window.cycleRadioStation(1)">NEXT</button>
+        <button class="radio-btn-action" onclick="window.stopRadioAudio()">STOP</button>
+      </div>
+
+      <!-- Volume Bar -->
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:2px 4px; font-size:9px; color:#8A8D91;">
+        <span>VOLUME</span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <input type="range" id="radio-volume-slider" min="0" max="1" step="0.05" value="0.8" oninput="window.setRadioVolume(this.value)" style="width:90px; accent-color:#00F0FF; cursor:pointer;" />
+          <span id="radio-vol-percent" style="color:#00F0FF; font-weight:700; width:28px; text-align:right;">80%</span>
+        </div>
+      </div>
+
+      <audio id="globe-radio-audio" preload="none"></audio>
+    </div>
+  </div>
+
+  <!-- 9. CYBER THREAT ADVISORIES WINDOW -->
+  <div class="tactical-window-panel" id="tactical-win-cyber-news" data-panel="cyber_news" style="display:none;">
+    <div class="win-resize-handle win-resize-t" data-dir="t"></div>
+    <div class="win-resize-handle win-resize-r" data-dir="r"></div>
+    <div class="win-resize-handle win-resize-b" data-dir="b"></div>
+    <div class="win-resize-handle win-resize-l" data-dir="l"></div>
+    <div class="win-resize-handle win-resize-tl" data-dir="tl"></div>
+    <div class="win-resize-handle win-resize-tr" data-dir="tr"></div>
+    <div class="win-resize-handle win-resize-bl" data-dir="bl"></div>
+    <div class="win-resize-handle win-resize-br" data-dir="br"></div>
+
+    <div class="tactical-win-header">
+      <div class="tactical-win-title-group">
+        <span class="tactical-win-drag-dots" title="Drag to reposition">⠿</span>
+        <span class="tactical-win-icon">🛡️</span>
+        <span class="tactical-win-title">CYBER THREAT ADVISORIES</span>
+        <span class="tactical-win-badge" id="cyber-news-badge">CISA RSS</span>
+      </div>
+      <div class="tactical-win-controls">
+        <button class="tactical-win-btn" onclick="window.fetchCyberNews()" title="Refresh advisories">⟲</button>
+        <button class="tactical-win-btn" onclick="window.TacticalWindowManager.scaleWindow('cyber_news', -0.1)" title="Scale text smaller (A-)">A-</button>
+        <button class="tactical-win-btn" onclick="window.TacticalWindowManager.scaleWindow('cyber_news', 0.1)" title="Scale text larger (A+)">A+</button>
+        <button class="tactical-win-btn" onclick="window.TacticalWindowManager.minimizeWindow('cyber_news')" title="Minimize (_)">_</button>
+        <button class="tactical-win-btn close" onclick="window.TacticalWindowManager.closeWindow('cyber_news')" title="Close (X)">✕</button>
+      </div>
+    </div>
+    <div class="tactical-win-body" style="padding:10px; max-height:350px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:4px;">
+        <span style="font-size:9.5px; font-weight:700; color:#38BDF8; font-family:var(--mono);">LIVE FEED: CISA ADVISORIES</span>
+        <button class="globe-hud-btn" onclick="window.fetchCyberNews()" style="padding:2px 6px; font-size:8px;">⟲ REFRESH</button>
+      </div>
+      <div id="cyber-news-list" style="max-height:280px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;">
+        <div style="font-size:9px; color:#94A3B8; text-align:center; padding:10px;">Loading cyber advisories from CISA feed...</div>
       </div>
     </div>
   </div>
@@ -8359,7 +8435,11 @@ window.renderGeolocationResults = function(analyses) {
       rBodyHtml += '</div>';
     });
     resBody.innerHTML = rBodyHtml;
-    resCard.style.display = 'flex';
+    if (window.TacticalWindowManager) {
+      window.TacticalWindowManager.openWindow('geolocation');
+    } else {
+      resCard.style.display = 'flex';
+    }
   }
 
   if (speechSummary && typeof showSubtitles === 'function') {
@@ -18855,8 +18935,12 @@ window.updateSectorWeather = async function(lat, lon, label) {
     if (window._setTrafficLayerEnabled) {
       window._setTrafficLayerEnabled(_tacticalLayers.traffic);
     }
-  } else if (layerName === 'radio' && _radioDataSource) {
-    _radioDataSource.show = _tacticalLayers.radio;
+  } else if (layerName === 'radio') {
+    if (_radioDataSource) _radioDataSource.show = _tacticalLayers.radio;
+    if (window.TacticalWindowManager) {
+      if (_tacticalLayers.radio) window.TacticalWindowManager.openWindow('radio');
+      else window.TacticalWindowManager.closeWindow('radio');
+    }
   } else if (layerName === 'space') {
     if (_spaceDataSource) {
       _spaceDataSource.show = _tacticalLayers.space;
@@ -19196,12 +19280,24 @@ window.inspectTarget = function(data) {
     }
   }
 
-  card.classList.add('visible');
+  if (window.TacticalWindowManager) {
+    window.TacticalWindowManager.openWindow('inspect');
+  } else {
+    card.classList.add('visible');
+    card.style.display = 'flex';
+  }
 };
 
 window.closeGlobeInspectCard = function() {
   const card = document.getElementById('globe-inspect-card');
-  if (card) card.classList.remove('visible');
+  if (card) {
+    card.classList.remove('visible');
+    if (window.TacticalWindowManager) {
+      window.TacticalWindowManager.closeWindow('inspect');
+    } else {
+      card.style.display = 'none';
+    }
+  }
   if (typeof window.clearFocusedSatelliteTrack === 'function') {
     window.clearFocusedSatelliteTrack();
   }
@@ -19604,43 +19700,97 @@ const TACTICAL_WINDOWS_CONFIG = {
   airspace: {
     id: 'tactical-win-airspace',
     title: 'AIRSPACE RADAR (ADS-B)',
+    shortTitle: 'AIRSPACE',
     icon: '✈',
+    defaultOpen: true,
     defaultPos: () => ({ left: Math.max(10, window.innerWidth - 380), top: 54, width: 360, height: 350 })
   },
   maritime: {
     id: 'tactical-win-maritime',
     title: 'MARITIME VESSELS (AIS)',
+    shortTitle: 'MARITIME',
     icon: '🚢',
+    defaultOpen: true,
     defaultPos: () => ({ left: Math.max(10, window.innerWidth - 380), top: 418, width: 360, height: 300 })
   },
   satellites: {
     id: 'tactical-win-satellites',
     title: 'ORBITAL SATELLITES (ISS)',
+    shortTitle: 'SATELLITES',
     icon: '🛰️',
+    defaultOpen: true,
     defaultPos: () => ({ left: 370, top: 54, width: 350, height: 280 })
   },
   ground_intel: {
     id: 'tactical-win-ground-intel',
     title: 'GROUND INTEL (OSINT)',
+    shortTitle: 'GROUND INTEL',
     icon: '📍',
+    defaultOpen: true,
     defaultPos: () => ({ left: Math.max(10, window.innerWidth - 750), top: 54, width: 350, height: 380 })
   },
   weather: {
     id: 'tactical-win-weather',
     title: 'SECTOR WEATHER INTEL',
+    shortTitle: 'WEATHER',
     icon: '🌦️',
+    defaultOpen: true,
     defaultPos: () => ({ left: 20, top: 54, width: 330, height: 280 })
   },
   system_logs: {
     id: 'tactical-win-system-logs',
     title: 'SYSTEM & TELEMETRY LOGS',
+    shortTitle: 'SYSTEM LOGS',
     icon: '⚡',
+    defaultOpen: true,
     defaultPos: () => ({ left: 20, top: 348, width: 330, height: 340 })
+  },
+  radio: {
+    id: 'globe-radio-card',
+    title: 'TACTICAL RADIO SCANNER',
+    shortTitle: 'RADIO',
+    icon: '📻',
+    defaultOpen: false,
+    defaultPos: () => ({ left: Math.max(10, window.innerWidth - 380), top: 120, width: 360, height: 380 })
+  },
+  cyber_news: {
+    id: 'tactical-win-cyber-news',
+    title: 'CYBER THREAT ADVISORIES',
+    shortTitle: 'CYBER NEWS',
+    icon: '🛡️',
+    defaultOpen: false,
+    defaultPos: () => ({ left: Math.max(10, window.innerWidth - 750), top: 418, width: 360, height: 320 })
+  },
+  inspect: {
+    id: 'globe-inspect-card',
+    title: 'TARGET INSPECT',
+    shortTitle: 'TARGET INSPECT',
+    icon: '🎯',
+    defaultOpen: false,
+    defaultPos: () => ({ left: 24, top: Math.max(54, window.innerHeight - 380), width: 340, height: 350 })
+  },
+  ground_media: {
+    id: 'ground-media-dock-panel',
+    title: 'GROUND INTEL CARD',
+    shortTitle: 'MEDIA CARD',
+    icon: '📹',
+    defaultOpen: false,
+    defaultPos: () => ({ left: Math.max(10, window.innerWidth - 750), top: 54, width: 360, height: 420 })
+  },
+  geolocation: {
+    id: 'geolocation-results-card',
+    title: 'IMAGE GEOLOCATION RESULTS',
+    shortTitle: 'GEOLOCATION',
+    icon: '🌐',
+    defaultOpen: false,
+    defaultPos: () => ({ left: 24, top: 120, width: 380, height: 450 })
   },
   diagnostics: {
     id: 'tactical-win-diagnostics',
-    title: 'SYSTEM DIAGNOSTICS (Ctrl+Shift+D)',
+    title: 'SYSTEM DIAGNOSTICS & TELEMETRY (Ctrl+Shift+D)',
+    shortTitle: 'DIAGNOSTICS',
     icon: '🩺',
+    defaultOpen: false,
     defaultPos: () => ({ left: Math.max(10, Math.round(window.innerWidth / 2 - 210)), top: 54, width: 420, height: 460 })
   }
 };
@@ -19735,6 +19885,8 @@ window.TacticalWindowManager = {
     if (cfg) {
       const el = document.getElementById(cfg.id);
       if (el) {
+        el.style.right = 'auto';
+        el.style.bottom = 'auto';
         el.style.display = 'flex';
         this.clamp(el);
         this.bringToFront(panelKey);
@@ -19790,13 +19942,14 @@ window.TacticalWindowManager = {
       const el = document.getElementById(cfg.id);
       if (!el) return;
       const pos = cfg.defaultPos();
+      const defOpen = cfg.defaultOpen !== false;
       el.style.left = pos.left + 'px';
       el.style.top = pos.top + 'px';
       el.style.width = pos.width + 'px';
       el.style.height = pos.height + 'px';
       el.style.right = 'auto';
       el.style.bottom = 'auto';
-      el.style.display = 'flex';
+      el.style.display = defOpen ? 'flex' : 'none';
       el.style.setProperty('--win-scale', '1.0');
       el.style.fontSize = '11px';
 
@@ -19807,7 +19960,7 @@ window.TacticalWindowManager = {
         width: pos.width,
         height: pos.height,
         scale: 1.0,
-        open: true,
+        open: defOpen,
         minimized: false
       };
       this.clamp(el);
@@ -19830,8 +19983,10 @@ window.TacticalWindowManager = {
     list.innerHTML = '';
     Object.keys(TACTICAL_WINDOWS_CONFIG).forEach(key => {
       const cfg = TACTICAL_WINDOWS_CONFIG[key];
-      const st = this._states[key] || { open: true, minimized: false };
+      const defOpen = cfg.defaultOpen !== false;
+      const st = this._states[key] || { open: defOpen, minimized: false };
       const isOpen = st.open && !st.minimized;
+      const title = cfg.shortTitle || cfg.title.split(' ')[0];
 
       const item = document.createElement('div');
       item.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:4px 6px; border-radius:4px; cursor:pointer; background:rgba(255,255,255,0.03);';
@@ -19842,7 +19997,7 @@ window.TacticalWindowManager = {
       item.innerHTML = `
         <div style="display:flex; align-items:center; gap:6px;">
           <span>${cfg.icon}</span>
-          <span style="color:#FFFFFF; font-weight:600; font-size:10px;">${cfg.title.split(' ')[0]}</span>
+          <span style="color:#FFFFFF; font-weight:600; font-size:10px;">${title}</span>
         </div>
         <span style="font-size:9px; font-weight:700; color:${isOpen ? '#00F0FF' : '#6B7280'};">${isOpen ? '● ON' : '○ OFF'}</span>
       `;
@@ -19858,10 +20013,11 @@ window.TacticalWindowManager = {
       const st = this._states[key];
       if (st && st.minimized) {
         const cfg = TACTICAL_WINDOWS_CONFIG[key];
+        const title = cfg.shortTitle || cfg.title.split(' ')[0];
         const chip = document.createElement('div');
         chip.className = 'tactical-min-chip';
         chip.title = `Click to restore ${cfg.title}`;
-        chip.innerHTML = `${cfg.icon} ${cfg.title.split(' ')[0]} <span style="font-size:8px;">▲</span>`;
+        chip.innerHTML = `${cfg.icon} ${title} <span style="font-size:8px;">▲</span>`;
         chip.onclick = () => this.restoreWindow(key);
         dock.appendChild(chip);
       }
@@ -19910,13 +20066,16 @@ window.TacticalWindowManager = {
       const width = s && typeof s.width === 'number' ? s.width : def.width;
       const height = s && typeof s.height === 'number' ? s.height : def.height;
       const scale = s && typeof s.scale === 'number' ? Math.max(0.70, Math.min(1.50, s.scale)) : 1.0;
-      const open = s ? s.open !== false : true;
+      const defOpen = cfg.defaultOpen !== false;
+      const open = s ? s.open !== false : defOpen;
       const minimized = s ? !!s.minimized : false;
 
       el.style.left = left + 'px';
       el.style.top = top + 'px';
       el.style.width = width + 'px';
       el.style.height = height + 'px';
+      el.style.right = 'auto';
+      el.style.bottom = 'auto';
       el.style.setProperty('--win-scale', scale.toFixed(2));
       el.style.fontSize = Math.round(11 * scale) + 'px';
       el.style.display = (!open || minimized) ? 'none' : 'flex';
@@ -19953,6 +20112,8 @@ window.TacticalWindowManager = {
           const rect = el.getBoundingClientRect();
           startLeft = rect.left;
           startTop = rect.top;
+          el.style.right = 'auto';
+          el.style.bottom = 'auto';
           try { header.setPointerCapture(e.pointerId); } catch (_) {}
           e.preventDefault();
         });
@@ -19964,6 +20125,9 @@ window.TacticalWindowManager = {
           el.style.left = Math.round(startLeft + dx) + 'px';
           el.style.top = Math.round(startTop + dy) + 'px';
           this.clamp(el);
+          if (key === 'ground_media' && typeof window.updateAnchoredGroundMediaCallout === 'function') {
+            window.updateAnchoredGroundMediaCallout();
+          }
         });
 
         const endDrag = (e) => {
@@ -19971,6 +20135,9 @@ window.TacticalWindowManager = {
           isDragging = false;
           try { header.releasePointerCapture(e.pointerId); } catch (_) {}
           this.saveState();
+          if (key === 'ground_media' && typeof window.updateAnchoredGroundMediaCallout === 'function') {
+            window.updateAnchoredGroundMediaCallout();
+          }
         };
         header.addEventListener('pointerup', endDrag);
         header.addEventListener('pointercancel', endDrag);
@@ -19990,6 +20157,8 @@ window.TacticalWindowManager = {
           startX = e.clientX;
           startY = e.clientY;
           startRect = el.getBoundingClientRect();
+          el.style.right = 'auto';
+          el.style.bottom = 'auto';
           try { handle.setPointerCapture(e.pointerId); } catch (_) {}
           e.preventDefault();
           e.stopPropagation();
@@ -20420,6 +20589,10 @@ window.tuneRadioStation = function(stationId, autoPlay = true) {
   _currentStationId = stationId;
   _currentRadioCategory = station.category || 'atc';
 
+  if (window.TacticalWindowManager) {
+    window.TacticalWindowManager.openWindow('radio');
+  }
+
   initRadioAudioListeners();
 
   const catSel = document.getElementById('radio-category-select');
@@ -20504,6 +20677,9 @@ window.filterRadioByCategory = function(category) {
   initRadioAudioListeners();
 
   if (category === 'cyber') {
+    if (window.TacticalWindowManager) {
+      window.TacticalWindowManager.openWindow('cyber_news');
+    }
     const cardBox = document.getElementById('radio-station-card-box');
     const dialBox = document.getElementById('radio-dial-container');
     const cyberPanel = document.getElementById('cyber-news-panel');
@@ -21013,7 +21189,11 @@ function initGlobeIntelligence(viewer) {
 
   window.closeGeolocationCard = function() {
     const card = document.getElementById('geolocation-results-card');
-    if (card) card.style.display = 'none';
+    if (window.TacticalWindowManager) {
+      window.TacticalWindowManager.closeWindow('geolocation');
+    } else if (card) {
+      card.style.display = 'none';
+    }
   };
 
   window.copyImageToClipboard = async function(imgPath) {
@@ -21803,7 +21983,11 @@ function initGlobeIntelligence(viewer) {
       }
     }
 
-    panel.style.display = 'block';
+    if (window.TacticalWindowManager) {
+      window.TacticalWindowManager.openWindow('ground_media');
+    } else {
+      panel.style.display = 'block';
+    }
     window.updateAnchoredGroundMediaCallout();
 
     if (window.JarvisSFX && window.JarvisSFX.targetLock) {
@@ -21840,7 +22024,11 @@ function initGlobeIntelligence(viewer) {
 
   window.closeGroundMediaCard = function() {
     const panel = document.getElementById('ground-media-dock-panel');
-    if (panel) panel.style.display = 'none';
+    if (window.TacticalWindowManager) {
+      window.TacticalWindowManager.closeWindow('ground_media');
+    } else if (panel) {
+      panel.style.display = 'none';
+    }
     const iframe = document.getElementById('ground-media-dock-iframe');
     if (iframe) {
       iframe.src = ''; // Crucial: unmount iframe to kill active video/audio leaks immediately
