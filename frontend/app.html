@@ -5333,6 +5333,102 @@ body.voiceos-mode #jarvis-hud-notch-wrapper {
     </div>
   </div>
 
+  <!-- 7. SYSTEM DIAGNOSTICS & TELEMETRY WINDOW (Ctrl+Shift+D) -->
+  <div class="tactical-window-panel" id="tactical-win-diagnostics" data-panel="diagnostics">
+    <div class="win-resize-handle win-resize-t" data-dir="t"></div>
+    <div class="win-resize-handle win-resize-r" data-dir="r"></div>
+    <div class="win-resize-handle win-resize-b" data-dir="b"></div>
+    <div class="win-resize-handle win-resize-l" data-dir="l"></div>
+    <div class="win-resize-handle win-resize-tl" data-dir="tl"></div>
+    <div class="win-resize-handle win-resize-tr" data-dir="tr"></div>
+    <div class="win-resize-handle win-resize-bl" data-dir="bl"></div>
+    <div class="win-resize-handle win-resize-br" data-dir="br"></div>
+
+    <div class="tactical-win-header">
+      <div class="tactical-win-title-group">
+        <span class="tactical-win-drag-dots" title="Drag to reposition">⠿</span>
+        <span class="tactical-win-icon">🩺</span>
+        <span class="tactical-win-title">SYSTEM DIAGNOSTICS</span>
+        <span class="tactical-win-badge" id="win-diagnostics-badge">TELEMETRY 2S</span>
+      </div>
+      <div class="tactical-win-controls">
+        <button class="tactical-win-btn" onclick="window.copyDiagnosticsReport()" title="Copy diagnostics report to clipboard" style="width:auto; padding:0 6px; font-weight:700; color:#00F0FF;">COPY</button>
+        <button class="tactical-win-btn" onclick="window.TacticalWindowManager.scaleWindow('diagnostics', -0.1)" title="Scale text smaller (A-)">A-</button>
+        <button class="tactical-win-btn" onclick="window.TacticalWindowManager.scaleWindow('diagnostics', 0.1)" title="Scale text larger (A+)">A+</button>
+        <button class="tactical-win-btn" onclick="window.TacticalWindowManager.minimizeWindow('diagnostics')" title="Minimize (_)">_</button>
+        <button class="tactical-win-btn close" onclick="window.TacticalWindowManager.closeWindow('diagnostics')" title="Close (X)">✕</button>
+      </div>
+    </div>
+    <div class="tactical-win-body" style="display:flex; flex-direction:column; gap:8px; font-family:var(--mono, monospace); font-size:10px; color:#E2E8F0; max-height:420px; overflow-y:auto;">
+      <!-- Cesium Engine & FPS -->
+      <div style="background:rgba(15,23,42,0.6); border:1px solid rgba(56,189,248,0.2); border-radius:4px; padding:6px 8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:3px;">
+          <span style="font-weight:700; color:#38BDF8; font-size:9.5px;">🌐 CESIUM RENDER TELEMETRY</span>
+          <span id="diag-fps-badge" style="color:#10B981; font-weight:700; font-size:9.5px;">0.0 FPS</span>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; font-size:9px;">
+          <div><span style="color:#94A3B8;">FPS (Real-time):</span> <span id="diag-fps-val" style="color:#FFFFFF; font-weight:700;">--</span></div>
+          <div><span style="color:#94A3B8;">p95 Frame Time:</span> <span id="diag-p95-val" style="color:#FFFFFF; font-weight:700;">--</span></div>
+          <div style="grid-column:1 / -1;"><span style="color:#94A3B8;">Render Mode:</span> <span id="diag-rendermode-val" style="color:#FFFFFF; word-break:break-all;">--</span></div>
+        </div>
+      </div>
+
+      <!-- Entities per data source -->
+      <div style="background:rgba(15,23,42,0.6); border:1px solid rgba(56,189,248,0.2); border-radius:4px; padding:6px 8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:3px;">
+          <span style="font-weight:700; color:#38BDF8; font-size:9.5px;">📍 DATA SOURCE ENTITIES</span>
+          <span id="diag-total-entities" style="color:#FFB84D; font-weight:700; font-size:9px;">0 ENTITIES</span>
+        </div>
+        <div id="diag-entities-list" style="display:flex; flex-direction:column; gap:2px; font-size:9px; max-height:85px; overflow-y:auto;">
+          <div style="color:#64748B;">No data sources loaded</div>
+        </div>
+      </div>
+
+      <!-- Process RSS & CPU (psutil) -->
+      <div style="background:rgba(15,23,42,0.6); border:1px solid rgba(56,189,248,0.2); border-radius:4px; padding:6px 8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:3px;">
+          <span style="font-weight:700; color:#38BDF8; font-size:9.5px;">💻 HOST RESOURCE UTILIZATION</span>
+          <span style="color:#94A3B8; font-size:8.5px;">(psutil bridge)</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:4px; font-size:9px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:2px 4px; border-radius:2px;">
+            <span><strong style="color:#E2E8F0;">Python App</strong> <span id="diag-py-pid" style="color:#64748B;">(PID --)</span>:</span>
+            <span>CPU <strong id="diag-py-cpu" style="color:#38BDF8;">0.0%</strong> | RSS <strong id="diag-py-rss" style="color:#38BDF8;">0.0 MB</strong></span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:2px 4px; border-radius:2px;">
+            <span><strong style="color:#E2E8F0;">WebKit Procs</strong> <span id="diag-webkit-cnt" style="color:#64748B;">(-- procs)</span>:</span>
+            <span>CPU <strong id="diag-webkit-cpu" style="color:#38BDF8;">0.0%</strong> | RSS <strong id="diag-webkit-rss" style="color:#38BDF8;">0.0 MB</strong></span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:2px 4px; border-radius:2px;">
+            <span><strong style="color:#E2E8F0;">Ollama Engine</strong> <span id="diag-ollama-state" style="color:#10B981;">(STANDBY)</span>:</span>
+            <span>CPU <strong id="diag-ollama-cpu" style="color:#38BDF8;">0.0%</strong> | RSS <strong id="diag-ollama-rss" style="color:#38BDF8;">0.0 MB</strong></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Models & Whisper -->
+      <div style="background:rgba(15,23,42,0.6); border:1px solid rgba(56,189,248,0.2); border-radius:4px; padding:6px 8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:3px;">
+          <span style="font-weight:700; color:#38BDF8; font-size:9.5px;">🧠 AI INFERENCE SUBSYSTEMS</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:3px; font-size:9px;">
+          <div><span style="color:#94A3B8;">Whisper ASR:</span> <span id="diag-whisper-val" style="color:#E2E8F0; font-weight:600;">Unloaded (idle / lazy)</span></div>
+          <div><span style="color:#94A3B8;">Ollama Models (/api/ps):</span> <span id="diag-ollama-models" style="color:#E2E8F0; font-weight:600;">None loaded</span></div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div style="display:flex; gap:6px; margin-top:2px;">
+        <button class="globe-hud-btn" id="diag-btn-copy-report" onclick="window.copyDiagnosticsReport()" style="flex:1; font-weight:700; color:#00F0FF; border-color:rgba(0,240,255,0.4); padding:6px 8px;">
+          📋 COPY FULL REPORT
+        </button>
+        <button class="globe-hud-btn" onclick="window.updateDiagnosticsTelemetry(true)" style="padding:6px 10px; font-size:9px;" title="Refresh now">
+          ⟲ REFRESH
+        </button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <!-- PART 3: MINIMIZED FLOATING DOCK BAR -->
@@ -19540,6 +19636,12 @@ const TACTICAL_WINDOWS_CONFIG = {
     title: 'SYSTEM & TELEMETRY LOGS',
     icon: '⚡',
     defaultPos: () => ({ left: 20, top: 348, width: 330, height: 340 })
+  },
+  diagnostics: {
+    id: 'tactical-win-diagnostics',
+    title: 'SYSTEM DIAGNOSTICS (Ctrl+Shift+D)',
+    icon: '🩺',
+    defaultPos: () => ({ left: Math.max(10, Math.round(window.innerWidth / 2 - 210)), top: 54, width: 420, height: 460 })
   }
 };
 
@@ -19641,6 +19743,9 @@ window.TacticalWindowManager = {
     this.renderMinimizedDock();
     this.renderTopbarMenu();
     this.saveState();
+    if (panelKey === 'diagnostics' && typeof window.updateDiagnosticsTelemetry === 'function') {
+      window.updateDiagnosticsTelemetry(true);
+    }
   },
 
   closeWindow(panelKey) {
@@ -19948,6 +20053,284 @@ if (document.readyState === 'loading') {
 } else {
   window.TacticalWindowManager.init();
 }
+
+// ============================================================================
+// PART 6: SYSTEM DIAGNOSTICS & TELEMETRY SUBSYSTEM
+// ============================================================================
+window.getDiagnosticsFrameMetrics = function() {
+  const deltas = window._cesiumFrameDeltas || [];
+  if (deltas.length === 0) {
+    return { fps: 0, p95: 0, fpsStr: '0.0 FPS', p95Str: '0.0 ms' };
+  }
+  const recent = deltas.slice(-40);
+  const sum = recent.reduce((a, b) => a + b, 0);
+  const avg = sum / recent.length;
+  const fps = avg > 0 ? (1000 / avg) : 0;
+
+  const sorted = [...recent].sort((a, b) => a - b);
+  const p95Idx = Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95));
+  const p95 = sorted[p95Idx] || avg;
+
+  return {
+    fps: Math.round(fps * 10) / 10,
+    p95: Math.round(p95 * 10) / 10,
+    fpsStr: (Math.round(fps * 10) / 10).toFixed(1) + ' FPS',
+    p95Str: (Math.round(p95 * 10) / 10).toFixed(1) + ' ms'
+  };
+};
+
+window.getDiagnosticsEntitiesBreakdown = function() {
+  const breakdown = [];
+  let total = 0;
+  if (window.cesiumViewer && !window.cesiumViewer.isDestroyed()) {
+    const v = window.cesiumViewer;
+    if (v.entities) {
+      const cnt = v.entities.values ? v.entities.values.length : 0;
+      breakdown.push({ name: 'Root Entities', count: cnt });
+      total += cnt;
+    }
+    if (v.dataSources) {
+      for (let i = 0; i < v.dataSources.length; i++) {
+        const ds = v.dataSources.get(i);
+        const cnt = ds && ds.entities && ds.entities.values ? ds.entities.values.length : 0;
+        breakdown.push({ name: ds.name || `Data Source #${i + 1}`, count: cnt });
+        total += cnt;
+      }
+    }
+  }
+  return { breakdown, total };
+};
+
+window.getDiagnosticsRenderMode = function() {
+  if (!window.cesiumViewer || window.cesiumViewer.isDestroyed()) {
+    return 'Cesium 3D Inactive';
+  }
+  const v = window.cesiumViewer;
+  const reqMode = (v.scene && v.scene.requestRenderMode) ? 'requestRenderMode (ON)' : 'continuousRenderMode';
+  const loop = v.useDefaultRenderLoop ? 'loop: active' : 'loop: paused';
+  const cadence = window._lastGovernorCadence ? `cadence: ${window._lastGovernorCadence}ms` : '';
+  const anim = (typeof window._isAnyAnimatedLayerActive === 'function' && window._isAnyAnimatedLayerActive()) ? 'layers: active' : 'layers: idle';
+  return [reqMode, loop, cadence, anim].filter(Boolean).join(' | ');
+};
+
+window._lastDiagnosticsReportData = null;
+
+window.updateDiagnosticsTelemetry = async function(force = false) {
+  const win = document.getElementById('tactical-win-diagnostics');
+  if (!win && !force) return;
+
+  const fm = window.getDiagnosticsFrameMetrics();
+  const ent = window.getDiagnosticsEntitiesBreakdown();
+  const rm = window.getDiagnosticsRenderMode();
+
+  // Update DOM frame metrics
+  const fpsBadge = document.getElementById('diag-fps-badge');
+  const fpsVal = document.getElementById('diag-fps-val');
+  const p95Val = document.getElementById('diag-p95-val');
+  const rmVal = document.getElementById('diag-rendermode-val');
+  if (fpsBadge) fpsBadge.textContent = fm.fpsStr;
+  if (fpsVal) fpsVal.textContent = fm.fpsStr;
+  if (p95Val) p95Val.textContent = fm.p95Str;
+  if (rmVal) rmVal.textContent = rm;
+
+  // Update DOM entities breakdown
+  const totEnt = document.getElementById('diag-total-entities');
+  const entList = document.getElementById('diag-entities-list');
+  if (totEnt) totEnt.textContent = `${ent.total} ENTITIES`;
+  if (entList) {
+    if (ent.breakdown.length === 0) {
+      entList.innerHTML = '<div style="color:#64748B;">No active data sources</div>';
+    } else {
+      entList.innerHTML = ent.breakdown.map(item => `
+        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:1px 4px; border-radius:2px;">
+          <span style="color:#CBD5E1; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; max-width:260px;">${item.name}</span>
+          <span style="color:#00F0FF; font-weight:700;">${item.count}</span>
+        </div>
+      `).join('');
+    }
+  }
+
+  // Fetch host system diagnostics (psutil, webkit, ollama, whisper)
+  let sysData = null;
+  try {
+    const resp = await fetch('/api/diagnostics/system');
+    if (resp.ok) {
+      sysData = await resp.json();
+    }
+  } catch (err) {
+    // Standalone fallback
+  }
+
+  if (sysData) {
+    // Python App
+    const pyPid = document.getElementById('diag-py-pid');
+    const pyCpu = document.getElementById('diag-py-cpu');
+    const pyRss = document.getElementById('diag-py-rss');
+    if (pyPid) pyPid.textContent = `(PID ${sysData.python_app?.pid || '--'})`;
+    if (pyCpu) pyCpu.textContent = `${(sysData.python_app?.cpu_percent || 0).toFixed(1)}%`;
+    if (pyRss) pyRss.textContent = `${(sysData.python_app?.rss_mb || 0).toFixed(1)} MB`;
+
+    // WebKit Procs
+    const wkCnt = document.getElementById('diag-webkit-cnt');
+    const wkCpu = document.getElementById('diag-webkit-cpu');
+    const wkRss = document.getElementById('diag-webkit-rss');
+    if (wkCnt) wkCnt.textContent = `(${sysData.webkit_processes?.count || 0} procs)`;
+    if (wkCpu) wkCpu.textContent = `${(sysData.webkit_processes?.total_cpu_percent || 0).toFixed(1)}%`;
+    if (wkRss) wkRss.textContent = `${(sysData.webkit_processes?.total_rss_mb || 0).toFixed(1)} MB`;
+
+    // Ollama Engine
+    const olState = document.getElementById('diag-ollama-state');
+    const olCpu = document.getElementById('diag-ollama-cpu');
+    const olRss = document.getElementById('diag-ollama-rss');
+    const olModels = document.getElementById('diag-ollama-models');
+    const isOlRunning = !!sysData.ollama?.running;
+    if (olState) {
+      olState.textContent = isOlRunning ? '(ONLINE)' : '(OFFLINE)';
+      olState.style.color = isOlRunning ? '#10B981' : '#64748B';
+    }
+    if (olCpu) olCpu.textContent = `${(sysData.ollama?.cpu_percent || 0).toFixed(1)}%`;
+    if (olRss) olRss.textContent = `${(sysData.ollama?.rss_mb || 0).toFixed(1)} MB`;
+    if (olModels) {
+      const models = sysData.ollama?.loaded_models || [];
+      if (models.length > 0) {
+        olModels.textContent = models.map(m => m.name || m.model || JSON.stringify(m)).join(', ');
+        olModels.style.color = '#38BDF8';
+      } else {
+        olModels.textContent = isOlRunning ? 'None loaded in memory (/api/ps)' : 'Offline / no models';
+        olModels.style.color = '#94A3B8';
+      }
+    }
+
+    // Whisper ASR
+    const whVal = document.getElementById('diag-whisper-val');
+    if (whVal) {
+      const isLoaded = !!sysData.whisper?.loaded;
+      whVal.textContent = sysData.whisper?.status || (isLoaded ? 'Loaded in memory' : 'Unloaded (idle / lazy)');
+      whVal.style.color = isLoaded ? '#10B981' : '#94A3B8';
+    }
+  }
+
+  // Cache snapshot for copy report
+  window._lastDiagnosticsReportData = {
+    timestamp: new Date().toISOString(),
+    frameMetrics: fm,
+    entities: ent,
+    renderMode: rm,
+    system: sysData
+  };
+};
+
+window.copyDiagnosticsReport = function() {
+  const d = window._lastDiagnosticsReportData || {
+    timestamp: new Date().toISOString(),
+    frameMetrics: window.getDiagnosticsFrameMetrics(),
+    entities: window.getDiagnosticsEntitiesBreakdown(),
+    renderMode: window.getDiagnosticsRenderMode(),
+    system: null
+  };
+
+  const lines = [
+    '==================================================',
+    'J.A.R.V.I.S. SYSTEM DIAGNOSTICS & TELEMETRY REPORT',
+    `Timestamp: ${d.timestamp}`,
+    '==================================================',
+    '',
+    '1. GRAPHICS & CESIUM 3D ENGINE',
+    '--------------------------------------------------',
+    `FPS (Real-time): ${d.frameMetrics?.fpsStr || 'N/A'}`,
+    `p95 Frame Time:  ${d.frameMetrics?.p95Str || 'N/A'}`,
+    `Render Mode:     ${d.renderMode || 'N/A'}`,
+    `Document Hidden: ${document.hidden}`,
+    '',
+    '2. DATA SOURCES & ENTITIES BREAKDOWN',
+    '--------------------------------------------------',
+    `Total Entities:  ${d.entities?.total || 0}`
+  ];
+
+  if (d.entities?.breakdown) {
+    d.entities.breakdown.forEach(item => {
+      lines.push(`  - ${item.name}: ${item.count} entities`);
+    });
+  }
+
+  lines.push('');
+  lines.push('3. HOST RESOURCE UTILIZATION (psutil)');
+  lines.push('--------------------------------------------------');
+  if (d.system?.python_app) {
+    const py = d.system.python_app;
+    lines.push(`Python App (PID ${py.pid}):`);
+    lines.push(`  CPU: ${py.cpu_percent?.toFixed(1)}%`);
+    lines.push(`  RSS: ${py.rss_mb?.toFixed(1)} MB (${py.rss_bytes} bytes)`);
+  }
+  if (d.system?.webkit_processes) {
+    const wk = d.system.webkit_processes;
+    lines.push(`WebKit Subsystem:`);
+    lines.push(`  Process Count: ${wk.count}`);
+    lines.push(`  Total CPU:     ${wk.total_cpu_percent?.toFixed(1)}%`);
+    lines.push(`  Total RSS:     ${wk.total_rss_mb?.toFixed(1)} MB (${wk.total_rss_bytes} bytes)`);
+    if (wk.processes && wk.processes.length > 0) {
+      lines.push('  Subprocesses:');
+      wk.processes.forEach(p => {
+        lines.push(`    - PID ${p.pid} (${p.name}): CPU ${p.cpu_percent?.toFixed(1)}% | RSS ${p.rss_mb?.toFixed(1)} MB`);
+      });
+    }
+  }
+  if (d.system?.ollama) {
+    const ol = d.system.ollama;
+    lines.push(`Ollama Subsystem:`);
+    lines.push(`  Running:       ${ol.running ? 'YES' : 'NO'}`);
+    lines.push(`  CPU:           ${ol.cpu_percent?.toFixed(1)}%`);
+    lines.push(`  RSS:           ${ol.rss_mb?.toFixed(1)} MB (${ol.rss_bytes} bytes)`);
+    const loaded = (ol.loaded_models || []).map(m => m.name || m.model || JSON.stringify(m)).join(', ') || 'None';
+    lines.push(`  Loaded Models: ${loaded}`);
+  }
+
+  lines.push('');
+  lines.push('4. AI & SPEECH INFERENCE ENGINES');
+  lines.push('--------------------------------------------------');
+  lines.push(`Whisper ASR: ${d.system?.whisper?.status || (d.system?.whisper?.loaded ? 'Loaded' : 'Unloaded')}`);
+  lines.push('==================================================');
+
+  const text = lines.join('\n');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).catch(() => {});
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (_) {}
+    document.body.removeChild(ta);
+  }
+
+  const btn = document.getElementById('diag-btn-copy-report');
+  if (btn) {
+    const oldText = btn.textContent;
+    btn.textContent = '✓ COPIED TO CLIPBOARD!';
+    btn.style.color = '#10B981';
+    btn.style.borderColor = '#10B981';
+    setTimeout(() => {
+      btn.textContent = oldText;
+      btn.style.color = '#00F0FF';
+      btn.style.borderColor = 'rgba(0,240,255,0.4)';
+    }, 2000);
+  }
+};
+
+// Diagnostics 2-second background refresh timer
+setInterval(() => {
+  window.updateDiagnosticsTelemetry();
+}, 2000);
+
+// Global shortcut: Ctrl+Shift+D toggles Diagnostics Window
+window.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
+    e.preventDefault();
+    if (window.TacticalWindowManager) {
+      window.TacticalWindowManager.toggleWindow('diagnostics');
+    }
+  }
+});
 
 
 
@@ -22653,7 +23036,7 @@ function initGlobeIntelligence(viewer) {
             backgroundPadding: new Cesium.Cartesian2(6, 3),
             verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
             pixelOffset: new Cesium.Cartesian2(0, -10),
-            disableDepthTestDistance: Number.POSITIVE_INFINITY
+            disableDepthTestDistance: 50000
           }
         });
       }
@@ -24361,9 +24744,20 @@ function initGlobeIntelligence(viewer) {
   // ── Part 2: Render Governor, Camera Listener & Safe Render Loop Watchdog ──
   window._cesiumRenderedFrames = 0;
   window._lastCesiumRenderTime = performance.now();
+  window._cesiumFrameDeltas = [];
+  let _lastPostRenderStamp = performance.now();
   viewer.scene.postRender.addEventListener(() => {
     window._cesiumRenderedFrames++;
-    window._lastCesiumRenderTime = performance.now();
+    const now = performance.now();
+    const delta = now - _lastPostRenderStamp;
+    _lastPostRenderStamp = now;
+    window._lastCesiumRenderTime = now;
+    if (delta > 0 && delta < 2000) {
+      window._cesiumFrameDeltas.push(delta);
+      if (window._cesiumFrameDeltas.length > 80) {
+        window._cesiumFrameDeltas.shift();
+      }
+    }
   });
 
   // Camera movement always renders

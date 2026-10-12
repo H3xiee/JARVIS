@@ -1619,6 +1619,23 @@ class JarvisAPI:
                     )
                     self._run_ask(sat_prompt)
                     return
+            # Fast-path check: OSINT investigation fast-paths and ambiguous clarification
+            from core.agent_router import AgentRouter
+            router = AgentRouter()
+            is_fp, fp_ack, fp_task, fp_cat = router.route_fast_path(text)
+            if is_fp:
+                if fp_cat == "clarification":
+                    self._emit("jarvis_stream_chunk", {"chunk": fp_ack})
+                    self._emit("jarvis_answer", {"text": fp_ack, "mode": "advisor"})
+                    self._speak_and_suppress_echo(fp_ack)
+                    self._start_follow_up_window()
+                    return
+                elif fp_cat == "osint_investigate" and fp_task:
+                    target_str = fp_task.data.get("target")
+                    self._emit("scan_status", {"message": f"Autonomous OSINT reconnaissance initiated — Target: {target_str}"})
+                    self._run_stalk(target_str, None)
+                    return
+
             # 1. Zero-LLM Fast-Path check: system agency controls, volume, media, app launching, mute, terminal, task surface, rules, salutation
             if hasattr(self._voice, 'skills') and self._voice.skills:
                 try:
@@ -2203,6 +2220,133 @@ class JarvisAPI:
         except Exception as e:
             logger.error(f"[desktop] get_flight_history error: {e}")
             return {"status": "history unavailable", "available": False, "flights": []}
+
+    def get_system_diagnostics(self) -> dict:
+        """Collect live process RSS & CPU for Python app, WebKit processes, Ollama, Whisper status, and Ollama loaded models."""
+        diag = {
+            "python_app": {
+                "pid": os.getpid(),
+                "cpu_percent": 0.0,
+                "rss_bytes": 0,
+                "rss_mb": 0.0,
+            },
+            "webkit_processes": {
+                "count": 0,
+                "total_cpu_percent": 0.0,
+                "total_rss_bytes": 0,
+                "total_rss_mb": 0.0,
+                "processes": []
+            },
+            "ollama": {
+                "running": False,
+                "cpu_percent": 0.0,
+                "rss_bytes": 0,
+                "rss_mb": 0.0,
+                "loaded_models": []
+            },
+            "whisper": {
+                "loaded": False,
+                "status": "Not loaded"
+            }
+        }
+        if psutil is not None:
+            try:
+                curr = psutil.Process(os.getpid())
+                diag["python_app"]["cpu_percent"] = float(curr.cpu_percent(interval=None))
+                rss = curr.memory_info().rss
+                diag["python_app"]["rss_bytes"] = rss
+                diag["python_app"]["rss_mb"] = round(rss / (1024 * 1024), 1)
+
+                webkit_procs = []
+                seen_pids = {curr.pid}
+                try:
+                    for cp in curr.children(recursive=True):
+                        if cp.pid not in seen_pids:
+                            seen_pids.add(cp.pid)
+                            name = cp.name()
+                            c_rss = cp.memory_info().rss
+                            c_cpu = cp.cpu_percent(interval=None)
+                            webkit_procs.append({
+                                "pid": cp.pid,
+                                "name": name,
+                                "cpu_percent": float(c_cpu),
+                                "rss_mb": round(c_rss / (1024 * 1024), 1),
+                                "rss_bytes": c_rss
+                            })
+                except Exception:
+                    pass
+
+                try:
+                    for p in psutil.process_iter(['pid', 'name', 'memory_info']):
+                        try:
+                            pname = (p.info['name'] or '').lower()
+                            if ('webkit' in pname or 'bwrap' in pname) and p.info['pid'] not in seen_pids:
+                                seen_pids.add(p.info['pid'])
+                                m_rss = p.info['memory_info'].rss if p.info['memory_info'] else 0
+                                c_cpu = p.cpu_percent(interval=None)
+                                webkit_procs.append({
+                                    "pid": p.info['pid'],
+                                    "name": p.info['name'],
+                                    "cpu_percent": float(c_cpu),
+                                    "rss_mb": round(m_rss / (1024 * 1024), 1),
+                                    "rss_bytes": m_rss
+                                })
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            continue
+                except Exception:
+                    pass
+
+                diag["webkit_processes"]["count"] = len(webkit_procs)
+                diag["webkit_processes"]["processes"] = webkit_procs
+                diag["webkit_processes"]["total_cpu_percent"] = round(sum(p["cpu_percent"] for p in webkit_procs), 1)
+                diag["webkit_processes"]["total_rss_bytes"] = sum(p["rss_bytes"] for p in webkit_procs)
+                diag["webkit_processes"]["total_rss_mb"] = round(sum(p["rss_mb"] for p in webkit_procs), 1)
+
+                ollama_rss = 0
+                ollama_cpu = 0.0
+                ollama_running = False
+                try:
+                    for p in psutil.process_iter(['pid', 'name', 'memory_info']):
+                        try:
+                            pname = (p.info['name'] or '').lower()
+                            if 'ollama' in pname:
+                                ollama_running = True
+                                if p.info['memory_info']:
+                                    ollama_rss += p.info['memory_info'].rss
+                                ollama_cpu += p.cpu_percent(interval=None)
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            continue
+                except Exception:
+                    pass
+                diag["ollama"]["running"] = ollama_running
+                diag["ollama"]["cpu_percent"] = round(ollama_cpu, 1)
+                diag["ollama"]["rss_bytes"] = ollama_rss
+                diag["ollama"]["rss_mb"] = round(ollama_rss / (1024 * 1024), 1)
+            except Exception as e:
+                logger.warning(f"[desktop] psutil diagnostics error: {e}")
+
+        # Query Ollama /api/ps for loaded models
+        try:
+            import urllib.request
+            req = urllib.request.Request("http://127.0.0.1:11434/api/ps")
+            with urllib.request.urlopen(req, timeout=1.0) as resp:
+                d = json.loads(resp.read().decode())
+                diag["ollama"]["loaded_models"] = d.get("models", [])
+                diag["ollama"]["running"] = True
+        except Exception:
+            diag["ollama"]["loaded_models"] = []
+
+        # Whisper state
+        whisper_loaded = bool(
+            getattr(self, '_faster_whisper_model', None) is not None or
+            getattr(self, '_whisper_model', None) is not None or
+            'whisper' in sys.modules or
+            'faster_whisper' in sys.modules
+        )
+        diag["whisper"]["loaded"] = whisper_loaded
+        diag["whisper"]["status"] = "Loaded in memory" if whisper_loaded else "Unloaded (idle / lazy)"
+
+        return diag
 
     def get_vessels(self, bounds=None, lat=None, lon=None, radius_km=None, type=None, limit=60, demo_mode=False) -> dict:
         """Fetch AIS maritime vessels filtered by camera viewport or coordinates."""
@@ -3854,6 +3998,8 @@ class JarvisAPI:
     async def _on_done(self, target, aborted=False):
         self._target = target
         error = False
+        from core.orchestrator import format_investigation_summary
+        summary_text = format_investigation_summary(target)
         if aborted:
             text = "Investigation aborted. You pulled me away. But I remember what we found so far."
             used_gemini = False
@@ -3869,14 +4015,18 @@ class JarvisAPI:
             if result.get("rate_limited"):
                 self._emit("rate_limited", {})
 
-        self._memory.add("jarvis", text)
+        self._memory.add("jarvis", text or summary_text)
         self._emit("investigation_done", {
             "target": target.to_dict(),
+            "summary": summary_text,
             "monologue": text,
+            "report_path": getattr(target, 'report_path', None),
             "audio": None,
             "used_gemini": used_gemini,
             "error": error
         })
+        self._emit("jarvis_answer", {"text": summary_text, "mode": "investigation"})
+        self._speak_and_suppress_echo(summary_text)
 
     def transcribe_audio(self, audio_b64: str) -> dict:
         """
@@ -5040,6 +5190,19 @@ def setup_jarvis_bottle_routes(app, server_root_path, api=None, server_uid=None,
         hex_code = bottle.request.query.get('hex', '').strip()
         from modules.flight_intel import get_flight_history
         return json.dumps(get_flight_history(hex_code))
+
+    @app.route('/api/diagnostics/system', method=['GET', 'OPTIONS'])
+    def _bottle_diagnostics_system():
+        bottle.response.headers['Access-Control-Allow-Origin'] = '*'
+        bottle.response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        bottle.response.content_type = 'application/json'
+        if bottle.request.method == 'OPTIONS':
+            return ""
+        if api and hasattr(api, 'get_system_diagnostics'):
+            return json.dumps(api.get_system_diagnostics())
+        # Standalone fallback if api instance is None
+        curr_api = JarvisAPI(None)
+        return json.dumps(curr_api.get_system_diagnostics())
 
     @app.route('/api/vessels', method=['GET', 'POST', 'OPTIONS'])
     def _bottle_vessels():
