@@ -2175,6 +2175,35 @@ class JarvisAPI:
         except Exception:
             return {"ac": [], "status": "OFFLINE", "message": "OFFLINE - no live data"}
 
+    def search_flights(self, query: str) -> list:
+        """Search active flights by callsign, flight number, airline, registration or hex."""
+        try:
+            from modules.flight_intel import search_flights
+            return search_flights(query)
+        except Exception as e:
+            logger.error(f"[desktop] search_flights error: {e}")
+            return []
+
+    def get_flight_trail(self, hex_code: str = "", callsign: str = "") -> dict:
+        """Retrieve recent trail positions for aircraft across restarts."""
+        try:
+            from modules.flight_intel import get_flight_trail_store
+            store = get_flight_trail_store()
+            trail = store.get_trail(hex_code) or (store.get_trail(callsign) if callsign else [])
+            return {"trail": trail}
+        except Exception as e:
+            logger.error(f"[desktop] get_flight_trail error: {e}")
+            return {"trail": []}
+
+    def get_flight_history(self, hex_code: str = "") -> dict:
+        """Retrieve past flights for aircraft via OpenSky."""
+        try:
+            from modules.flight_intel import get_flight_history
+            return get_flight_history(hex_code)
+        except Exception as e:
+            logger.error(f"[desktop] get_flight_history error: {e}")
+            return {"status": "history unavailable", "available": False, "flights": []}
+
     def get_vessels(self, bounds=None, lat=None, lon=None, radius_km=None, type=None, limit=60, demo_mode=False) -> dict:
         """Fetch AIS maritime vessels filtered by camera viewport or coordinates."""
         try:
@@ -4975,6 +5004,42 @@ def setup_jarvis_bottle_routes(app, server_root_path, api=None, server_uid=None,
             current_lon=cur_lon
         )
         return json.dumps(enrichment)
+
+    @app.route('/api/flights/search', method=['GET', 'OPTIONS'])
+    def _bottle_flight_search():
+        bottle.response.headers['Access-Control-Allow-Origin'] = '*'
+        bottle.response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        bottle.response.content_type = 'application/json'
+        if bottle.request.method == 'OPTIONS':
+            return ""
+        q = bottle.request.query.get('q', '').strip()
+        from modules.flight_intel import search_flights
+        return json.dumps(search_flights(q))
+
+    @app.route('/api/flights/trail', method=['GET', 'OPTIONS'])
+    def _bottle_flight_trail():
+        bottle.response.headers['Access-Control-Allow-Origin'] = '*'
+        bottle.response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        bottle.response.content_type = 'application/json'
+        if bottle.request.method == 'OPTIONS':
+            return ""
+        hex_code = bottle.request.query.get('hex', '').strip()
+        callsign = bottle.request.query.get('callsign', '').strip()
+        from modules.flight_intel import get_flight_trail_store
+        store = get_flight_trail_store()
+        trail = store.get_trail(hex_code) or (store.get_trail(callsign) if callsign else [])
+        return json.dumps({"trail": trail})
+
+    @app.route('/api/flights/history', method=['GET', 'OPTIONS'])
+    def _bottle_flight_history():
+        bottle.response.headers['Access-Control-Allow-Origin'] = '*'
+        bottle.response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        bottle.response.content_type = 'application/json'
+        if bottle.request.method == 'OPTIONS':
+            return ""
+        hex_code = bottle.request.query.get('hex', '').strip()
+        from modules.flight_intel import get_flight_history
+        return json.dumps(get_flight_history(hex_code))
 
     @app.route('/api/vessels', method=['GET', 'POST', 'OPTIONS'])
     def _bottle_vessels():

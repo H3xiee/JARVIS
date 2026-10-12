@@ -99,7 +99,9 @@ memory/*.json
 
 # Internal development & testing
 .pytest_cache/
-scripts/
+scripts/*
+!scripts/setup_playwright.sh
+!scripts/train_voice_phrases.py
 
 node_modules/
 frontend/app.html.bak

@@ -5057,6 +5057,15 @@ body.voiceos-mode #jarvis-hud-notch-wrapper {
         <button class="flight-cat-btn" onclick="window.setFlightCategoryFilter('emergency')">🔴 7700</button>
         <button class="flight-cat-btn" onclick="window.setFlightCategoryFilter('commercial')">🔵 AIR</button>
       </div>
+      <!-- FLIGHT OSINT SEARCH BOX -->
+      <div style="margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.06);">
+        <div style="display:flex; gap:4px; align-items:center;">
+          <input type="text" id="win-flight-search-input" placeholder="Search callsign, flight #, airline, reg, hex..." style="flex:1; background:rgba(15,23,42,0.85); border:1px solid rgba(56,189,248,0.3); color:#E2E8F0; padding:4px 8px; font-size:9.5px; border-radius:3px; outline:none; font-family:var(--mono, monospace);" onkeydown="if(event.key==='Enter') window.executeFlightSearch(this.value)">
+          <button class="flight-cat-btn" id="win-flight-search-btn" onclick="window.executeFlightSearch(document.getElementById('win-flight-search-input').value)" style="padding:4px 8px; font-size:9px; font-weight:700; background:rgba(56,189,248,0.2); border:1px solid #38BDF8; color:#38BDF8; cursor:pointer;">SEARCH</button>
+          <button class="flight-cat-btn" id="win-flight-search-clear" onclick="window.clearFlightSearch()" style="padding:4px 6px; font-size:9px; display:none;" title="Clear search">✕</button>
+        </div>
+        <div id="win-flight-search-results" style="display:none; max-height:150px; overflow-y:auto; margin-top:6px; border:1px solid rgba(56,189,248,0.2); border-radius:4px; background:rgba(10,15,25,0.95); padding:4px;"></div>
+      </div>
       <div style="display:flex; justify-content:space-between; align-items:center; font-size:9.5px; color:#8A8D91; margin-bottom:6px;">
         <span>ACTIVE TRANSPONDERS: <span id="radar-contact-count-win" style="color:#00F0FF; font-weight:700;">0</span></span>
         <button onclick="window.glideToTelemetryTarget && window.glideToTelemetryTarget()" style="background:none; border:none; color:#38BDF8; font-size:9px; cursor:pointer; text-decoration:underline;">TRACK TOP</button>
@@ -18902,6 +18911,10 @@ window.inspectTarget = function(data) {
         <div><span style="color:#8A8D91;">SQUAWK CODE:</span> <span style="color:${isEmergSqk ? '#EF4444; font-weight:800' : '#4ADE80'};">${sqkText}</span></div>
         <div><span style="color:#8A8D91;">REG / TAIL:</span> <span id="inspect-card-tail" style="color:#CBD5E1; font-weight:600;">${data.registration || data.hex || 'N/A'}</span></div>
         <div style="grid-column: span 2;"><span style="color:#8A8D91;">COORDINATES:</span> ${data.lat.toFixed(4)}° N, ${data.lon.toFixed(4)}° E</div>
+        <div id="inspect-card-flight-history" style="grid-column: span 2; margin-top:6px; padding:6px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); border-radius:4px;">
+          <div style="font-size:9px; color:#8A8D91; font-weight:700; margin-bottom:2px;">RECENT FLIGHT HISTORY (OPENSKY):</div>
+          <div id="inspect-card-history-content" style="font-size:9px; color:#64748B; font-style:italic;">Querying past flights...</div>
+        </div>
       </div>
     `;
 
@@ -18911,6 +18924,36 @@ window.inspectTarget = function(data) {
         if (data._entity) window.lockTarget(data._entity, data);
         else window.focusGlobeCoordinates(data.lat, data.lon, data.callsign);
       };
+    }
+
+    // Fetch real flight history from OpenSky past flights
+    if (data.hex) {
+      const curHex = data.hex;
+      fetch(`/api/flights/history?hex=${encodeURIComponent(curHex)}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(hist => {
+          const histEl = document.getElementById('inspect-card-history-content');
+          if (!histEl || !_inspectTargetData || _inspectTargetData.hex !== curHex) return;
+          if (hist && hist.available && Array.isArray(hist.flights) && hist.flights.length > 0) {
+            histEl.style.fontStyle = 'normal';
+            histEl.innerHTML = hist.flights.slice(0, 4).map(f => `
+              <div style="display:flex; justify-content:space-between; margin-bottom:2px; color:#E2E8F0;">
+                <span style="color:#00F0FF; font-weight:700;">${f.callsign || data.callsign}</span>
+                <span>${f.departure || '---'} ➔ ${f.arrival || '---'}</span>
+              </div>
+            `).join('');
+          } else {
+            histEl.innerHTML = '<span style="color:#64748B; font-style:italic;">history unavailable</span>';
+          }
+        })
+        .catch(() => {
+          const histEl = document.getElementById('inspect-card-history-content');
+          if (histEl) histEl.innerHTML = '<span style="color:#64748B; font-style:italic;">history unavailable</span>';
+        });
+    }
+
+    if (typeof window.renderFlightTrailAndPlannedRoute === 'function') {
+      window.renderFlightTrailAndPlannedRoute(data);
     }
 
     // Asynchronous God's Eye Flight Route & Airframe Enrichment (Bilawal Sidhu adsbdbProxy integration)
@@ -19065,6 +19108,9 @@ window.closeGlobeInspectCard = function() {
   if (card) card.classList.remove('visible');
   if (typeof window.clearFocusedSatelliteTrack === 'function') {
     window.clearFocusedSatelliteTrack();
+  }
+  if (window._flightTrailDataSource) {
+    try { window._flightTrailDataSource.entities.removeAll(); } catch (e) {}
   }
   _inspectTargetData = null;
 };
@@ -22407,6 +22453,214 @@ function initGlobeIntelligence(viewer) {
   window.updateAirspaceContacts = fetchLiveFlights;
   fetchLiveFlights();
   setInterval(fetchLiveFlights, FLIGHT_POLL_INTERVAL_MS);
+
+  // =========================================================================
+  // Part 5: Flight OSINT Search, Trail & Planned Route System
+  // =========================================================================
+  const _flightTrailDataSource = new Cesium.CustomDataSource('flight-trails');
+  _flightTrailDataSource.show = true;
+  viewer.dataSources.add(_flightTrailDataSource);
+  window._flightTrailDataSource = _flightTrailDataSource;
+
+  window.executeFlightSearch = async function(query) {
+    const q = (query || '').trim();
+    const resultsContainer = document.getElementById('win-flight-search-results');
+    const clearBtn = document.getElementById('win-flight-search-clear');
+    if (!q) {
+      if (resultsContainer) resultsContainer.style.display = 'none';
+      if (clearBtn) clearBtn.style.display = 'none';
+      return;
+    }
+    if (clearBtn) clearBtn.style.display = 'inline-block';
+    if (resultsContainer) {
+      resultsContainer.style.display = 'block';
+      resultsContainer.innerHTML = '<div style="color:#64748B; text-align:center; padding:6px; font-size:9px;">Scanning live airspace radar & telemetry...</div>';
+    }
+
+    try {
+      let flights = [];
+      if (api() && api().search_flights) {
+        try { flights = await api().search_flights(q); } catch (eBridge) {}
+      }
+      if (!flights || flights.length === 0) {
+        const res = await fetch(`/api/flights/search?q=${encodeURIComponent(q)}`);
+        if (res.ok) {
+          flights = await res.json();
+        }
+      }
+
+      if (!resultsContainer) return;
+      if (!flights || flights.length === 0) {
+        resultsContainer.innerHTML = `<div style="color:#64748B; text-align:center; padding:6px; font-size:9px;">No active contacts found for "${q}".</div>`;
+        return;
+      }
+
+      window._lastFlightSearchResults = flights;
+      resultsContainer.innerHTML = flights.map((f, idx) => {
+        const routeText = (f.origin_code && f.dest_code) ? `${f.origin_code} ➔ ${f.dest_code}` : (f.route_summary || 'Route N/A');
+        const altStr = f.altitude ? `${f.altitude} ft` : 'GND';
+        const spdStr = f.speed ? `${f.speed} kts` : '0 kts';
+        const simBadge = f.simulated ? ' <span style="color:#EF4444; font-weight:700;">[SIMULATED]</span>' : '';
+        return `
+          <div class="flight-search-item" onclick="window.selectFlightSearchResult(${idx})" style="padding:5px 6px; border-bottom:1px solid rgba(255,255,255,0.06); cursor:pointer; font-size:9px; border-radius:3px; transition:background 0.15s;" onmouseover="this.style.background='rgba(56,189,248,0.1)'" onmouseout="this.style.background='transparent'">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="color:#00F0FF; font-weight:800; font-family:JetBrains Mono, monospace;">${f.callsign}${simBadge}</span>
+              <span style="color:#FFB84D; font-weight:700;">${altStr} · ${spdStr}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; color:#94A3B8; margin-top:2px; font-size:8.5px;">
+              <span style="color:#E2E8F0; font-weight:600; max-width:140px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${f.airline || f.type || 'AIRCRAFT'} (${f.registration || f.hex || 'N/A'})</span>
+              <span style="color:#38BDF8; font-weight:700;">${routeText}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    } catch (err) {
+      if (resultsContainer) {
+        resultsContainer.innerHTML = `<div style="color:#EF4444; text-align:center; padding:6px; font-size:9px;">Search error: ${err.message || 'offline'}</div>`;
+      }
+    }
+  };
+
+  window.clearFlightSearch = function() {
+    const input = document.getElementById('win-flight-search-input');
+    const container = document.getElementById('win-flight-search-results');
+    const clearBtn = document.getElementById('win-flight-search-clear');
+    if (input) input.value = '';
+    if (container) container.style.display = 'none';
+    if (clearBtn) clearBtn.style.display = 'none';
+  };
+
+  window.selectFlightSearchResult = function(indexOrFlight) {
+    let f = typeof indexOrFlight === 'number' ? (window._lastFlightSearchResults && window._lastFlightSearchResults[indexOrFlight]) : indexOrFlight;
+    if (!f) return;
+
+    if (f.lat != null && f.lon != null) {
+      window.focusGlobeCoordinates(f.lat, f.lon, f.callsign);
+      if (window.cesiumViewer && !window.cesiumViewer.isDestroyed()) {
+        const altM = Math.max(12000, ((f.altitude || 30000) * 0.3048) * 2.2);
+        window.cesiumViewer.camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(Number(f.lon), Number(f.lat), altM),
+          duration: 1.5
+        });
+      }
+    }
+
+    // Convert to inspect target data
+    const tacticalData = {
+      type: 'AIRCRAFT',
+      callsign: f.callsign,
+      airline: f.airline,
+      typeDesc: f.type,
+      registration: f.registration,
+      lat: Number(f.lat || 0),
+      lon: Number(f.lon || 0),
+      alt: f.altitude,
+      speed: f.speed,
+      heading: f.track,
+      squawk: f.squawk,
+      hex: f.hex,
+      origin: f.origin,
+      destination: f.destination,
+      badge: f.badge,
+      simulated: f.simulated,
+      _enrichmentLoaded: true
+    };
+
+    window.inspectTarget(tacticalData);
+    window.renderFlightTrailAndPlannedRoute(f);
+  };
+
+  window.renderFlightTrailAndPlannedRoute = async function(ac) {
+    if (!_flightTrailDataSource) return;
+    _flightTrailDataSource.entities.removeAll();
+
+    const hex = (ac.hex || '').trim().toLowerCase();
+    const callsign = (ac.callsign || '').trim().toUpperCase();
+
+    // 1. Fetch recent flown trail positions
+    try {
+      let trail = [];
+      if (api() && api().get_flight_trail) {
+        try {
+          const res = await api().get_flight_trail(hex, callsign);
+          if (res && res.trail) trail = res.trail;
+        } catch (eTrBridge) {}
+      }
+      if (!trail || trail.length === 0) {
+        const res = await fetch(`/api/flights/trail?hex=${encodeURIComponent(hex)}&callsign=${encodeURIComponent(callsign)}`);
+        if (res.ok) {
+          const tData = await res.json();
+          trail = tData.trail || [];
+        }
+      }
+
+      // Add current position to end of trail
+      if (ac.lat != null && ac.lon != null) {
+        trail.push({ lat: Number(ac.lat), lon: Number(ac.lon), alt: Number(ac.altitude || ac.alt || 0) });
+      }
+
+      if (trail && trail.length >= 2) {
+        const positions = trail.map(pt => Cesium.Cartesian3.fromDegrees(Number(pt.lon), Number(pt.lat), (Number(pt.alt) || 0) * 0.3048));
+        _flightTrailDataSource.entities.add({
+          name: 'Flown Trail: ' + callsign,
+          polyline: {
+            positions: positions,
+            width: 3.2,
+            material: new Cesium.PolylineGlowMaterialProperty({
+              glowPower: 0.25,
+              color: Cesium.Color.fromCssColorString('#00F0FF')
+            })
+          }
+        });
+      }
+    } catch (eTr) {}
+
+    // 2. Draw great-circle dashed line between origin and destination
+    try {
+      const orig = ac.origin;
+      const dest = ac.destination;
+      if (orig && dest && orig.lat != null && dest.lat != null) {
+        const pOrig = Cesium.Cartesian3.fromDegrees(Number(orig.lon), Number(orig.lat), 500);
+        const pDest = Cesium.Cartesian3.fromDegrees(Number(dest.lon), Number(dest.lat), 500);
+        const midLat = (Number(orig.lat) + Number(dest.lat)) / 2;
+        const midLon = (Number(orig.lon) + Number(dest.lon)) / 2;
+        const pMid = Cesium.Cartesian3.fromDegrees(midLon, midLat, 12000);
+
+        _flightTrailDataSource.entities.add({
+          name: 'Planned Route: ' + (orig.code || '') + ' -> ' + (dest.code || ''),
+          polyline: {
+            positions: [pOrig, pDest],
+            arcType: Cesium.ArcType.GEODESIC,
+            width: 2.5,
+            material: new Cesium.PolylineDashMaterialProperty({
+              color: Cesium.Color.fromCssColorString('#F59E0B'),
+              dashLength: 16.0
+            })
+          }
+        });
+
+        _flightTrailDataSource.entities.add({
+          position: pMid,
+          label: {
+            text: 'planned route, not flown path',
+            font: '10px JetBrains Mono, monospace',
+            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+            fillColor: Cesium.Color.fromCssColorString('#F59E0B'),
+            outlineColor: Cesium.Color.BLACK,
+            outlineWidth: 2.5,
+            showBackground: true,
+            backgroundColor: new Cesium.Color(0.05, 0.08, 0.15, 0.85),
+            backgroundPadding: new Cesium.Cartesian2(6, 3),
+            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+            pixelOffset: new Cesium.Cartesian2(0, -10),
+            disableDepthTestDistance: Number.POSITIVE_INFINITY
+          }
+        });
+      }
+    } catch (eRoute) {}
+
+    viewer.scene.requestRender();
+  };
 
   // =========================================================================
   // 5. ORBITAL SATELLITES LAYER (ISS REAL-TIME TRACKER)

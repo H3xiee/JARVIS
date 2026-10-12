@@ -92,7 +92,7 @@ def print_jarvis_quote(quote: str):
 print_joe_quote = print_jarvis_quote
 
 
-def print_findings(target: Target):
+def print_findings(target: Target, show_rejected: bool = False):
     console.print()
     console.print(f"  [{C_ACCENT}]  {'─' * 58}[/]")
     console.print(f"  [bold {C_LIGHT}]  FINDINGS[/]")
@@ -102,15 +102,43 @@ def print_findings(target: Target):
     for e in target.entities:
         plat = f"  [{C_DIM}]({e.platform})[/]" if e.platform else ""
         verified = e.metadata.get("verified")
+        reason = e.metadata.get("verification_reason", "")
         v_tag = ""
-        if verified is True:
+        if "holehe" in e.sources:
+            v_tag = f"  [{C_ORANGE}]possible registration (unverified)[/]"
+        elif verified is True:
             v_tag = f"  [{C_GREEN}]✓[/]"
+        elif verified is None:
+            r_str = f" [{reason}]" if reason else ""
+            v_tag = f"  [{C_ORANGE}]?[/][{C_DIM}]{r_str}[/]"
         elif verified is False:
-            v_tag = f"  [{C_ORANGE}]✗[/]"
+            r_str = f" [{reason}]" if reason else ""
+            v_tag = f"  [{C_ORANGE}]✗[/][{C_DIM}]{r_str}[/]"
         console.print(
             f"  [{C_DIM}]  {e.entity_type:<16}[/]"
             f"[{C_LIGHT}]{e.value}[/]{plat}{v_tag}"
         )
+
+    rejected = getattr(target, "rejected_entities", [])
+    if rejected:
+        console.print()
+        console.print(
+            f"  [{C_DIM}]  {len(rejected)} hits rejected as likely false positives "
+            f"(use --show-rejected to list)[/]"
+        )
+        if show_rejected:
+            console.print()
+            console.print(f"  [{C_DIM}]  REJECTED HITS:[/]")
+            for r in rejected:
+                plat = f"  [{C_DIM}]({r.platform})[/]" if r.platform else ""
+                reason = r.metadata.get("verification_reason", "")
+                r_str = f"  [{C_ORANGE}][{reason}][/]" if reason else ""
+                url = r.metadata.get("url", "")
+                url_str = f"  [{C_DIM}]{url}[/]" if url else ""
+                console.print(
+                    f"  [{C_DIM}]  ✗ {r.entity_type:<14}[/]"
+                    f"[{C_LIGHT}]{r.value}[/]{plat}{url_str}{r_str}"
+                )
 
     if target.breaches:
         console.print()
@@ -215,11 +243,16 @@ def get_prompt() -> str:
 
 def _parse_stalk_args(arg: str):
     """
-    Parse 'target --brief "context text" --ctf' from investigate command.
-    Returns (target_str, brief_text, context).
+    Parse 'target --brief "context text" --ctf [--show-rejected]' from investigate command.
+    Returns (target_str, brief_text, context, show_rejected).
     """
     brief_text = None
     context = "general"
+    show_rejected = False
+
+    if "--show-rejected" in arg:
+        show_rejected = True
+        arg = arg.replace("--show-rejected", "")
 
     # Extract --brief "..." or --brief '...'
     brief_match = re.search(r'--brief\s+["\'](.+?)["\']', arg)
@@ -236,7 +269,7 @@ def _parse_stalk_args(arg: str):
         arg = arg.replace("--pentest", "")
 
     target_str = arg.strip()
-    return target_str, brief_text, context
+    return target_str, brief_text, context, show_rejected
 
 
 def _parse_fp_command(text: str):
@@ -268,6 +301,7 @@ class JarvisCLI:
     def __init__(self, initial_target: str = None):
         self.initial_target = initial_target
         self.current_target: Target = None
+        self.show_rejected = False
         self.voice = JarvisVoice()
         self.memory = SessionMemory()
         self.lessons_store = LessonsStore()
@@ -322,7 +356,8 @@ class JarvisCLI:
                     self._ask(text)
 
     def _investigate(self, target_input: str):
-        target_str, brief_text, context = _parse_stalk_args(target_input)
+        target_str, brief_text, context, show_rejected = _parse_stalk_args(target_input)
+        self.show_rejected = show_rejected
         if not target_str:
             console.print(f"\n  [{C_ORANGE}]  No target specified.[/]\n")
             return
@@ -431,7 +466,7 @@ class JarvisCLI:
             print_found(entity)
 
     async def _on_done(self, target: Target):
-        print_findings(target)
+        print_findings(target, show_rejected=self.show_rejected)
         console.print(f"  [{C_DIM}]  composing...[/]")
         result = self.voice.closing_monologue(target)
         if result.get("rate_limited"):

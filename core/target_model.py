@@ -52,6 +52,7 @@ class Breach:
     exposed_fields: List[str]
     source: str
     verified: bool = False
+    record_count: Optional[int] = None
 
 
 @dataclass
@@ -61,10 +62,12 @@ class Target:
     opened_at: str = field(default_factory=lambda: datetime.now().isoformat())
     last_updated: str = field(default_factory=lambda: datetime.now().isoformat())
     entities: List[Entity] = field(default_factory=list)
+    rejected_entities: List[Entity] = field(default_factory=list)
     breaches: List[Breach] = field(default_factory=list)
     notes: List[str] = field(default_factory=list)
     timeline: List[Dict] = field(default_factory=list)
     risk_score: float = 0.0
+    report_path: Optional[str] = None
 
     def add_entity(self, entity: Entity) -> bool:
         """Add entity — deduplicate by value + platform combination."""
@@ -94,8 +97,33 @@ class Target:
         self.log("entity_found", {"type": entity.entity_type, "value": entity.value})
         return True
 
+    def add_rejected_entity(self, entity: Entity) -> bool:
+        """Add rejected entity — deduplicate by value + platform combination."""
+        entity.value = clean_duplicate_suffix(entity.value.strip().rstrip('.'))
+        for e in self.rejected_entities:
+            e.value = clean_duplicate_suffix(e.value.strip().rstrip('.'))
+            if (e.value == entity.value and
+                e.entity_type == entity.entity_type and
+                e.platform == entity.platform):
+                e.sources = list(set(e.sources + entity.sources))
+                if entity.metadata:
+                    if not e.metadata:
+                        e.metadata = {}
+                    for k, v in entity.metadata.items():
+                        if v is not None and v != "" and not e.metadata.get(k):
+                            e.metadata[k] = v
+                return False
+        self.rejected_entities.append(entity)
+        self.log("entity_rejected", {
+            "type": entity.entity_type,
+            "value": entity.value,
+            "platform": entity.platform,
+            "reason": entity.metadata.get("verification_reason", "")
+        })
+        return True
+
     def add_breach(self, breach: Breach) -> bool:
-        if not any(b.name == breach.name for b in self.breaches):
+        if not any(b.name.lower().strip() == breach.name.lower().strip() for b in self.breaches):
             self.breaches.append(breach)
             self.log("breach_found", {"name": breach.name})
             return True
@@ -132,6 +160,7 @@ class Target:
             "last_updated": self.last_updated,
             "risk_score": self.risk_score,
             "entities": [e.__dict__ for e in self.entities],
+            "rejected_entities": [e.__dict__ for e in self.rejected_entities],
             "breaches": [b.__dict__ for b in self.breaches],
             "notes": self.notes,
             "timeline": self.timeline,
@@ -169,5 +198,6 @@ class Target:
         t.notes = data["notes"]
         t.timeline = data["timeline"]
         t.entities = [Entity(**e) for e in data["entities"]]
+        t.rejected_entities = [Entity(**e) for e in data.get("rejected_entities", [])]
         t.breaches = [Breach(**b) for b in data["breaches"]]
         return t

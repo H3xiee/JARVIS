@@ -162,6 +162,46 @@ class JarvisCognitiveLoop:
         debrief = fe.format_tactical_debrief(flights)
         return {"success": True, "count": len(flights), "flights": flights[:5], "debrief": debrief}
 
+    def tool_flight_search(self, query: str = "") -> Dict[str, Any]:
+        """Search active flights by callsign, flight number, airline, registration, or ICAO24 hex."""
+        from modules.flight_intel import search_flights
+        flights = search_flights(query, limit=10)
+        self.tool_tactical_layer("flights", True)
+        if flights:
+            top = flights[0]
+            lat = top.get("lat")
+            lon = top.get("lon")
+            if lat and lon:
+                self.bus.emit("glide_to_location", {
+                    "lat": lat,
+                    "lon": lon,
+                    "altitude": max(15000, float(top.get("altitude") or 30000) * 0.3048 * 2.5),
+                    "label": top.get("callsign", "AIRCRAFT")
+                })
+            self.bus.emit("inspect_flight", top)
+            route_str = f" en route {top.get('route_summary')}" if top.get("route_summary") else ""
+            alt_str = f" at {top.get('altitude')} ft" if top.get("altitude") else ""
+            summary = f"Located {top.get('callsign')} ({top.get('airline') or top.get('type')}){route_str}{alt_str}."
+            return {"success": True, "count": len(flights), "flights": flights, "summary": summary, "debrief": summary}
+        summary = f"No active airborne contacts found matching '{query}', Sir."
+        return {"success": False, "count": 0, "flights": [], "summary": summary, "debrief": summary}
+
+    def tool_flight_history(self, query: str = "") -> Dict[str, Any]:
+        """Lookup recent flight history via OpenSky Network."""
+        from modules.flight_intel import get_flight_history, search_flights
+        hex_code = (query or "").strip().lower()
+        if len(hex_code) != 6 or not all(c in '0123456789abcdef' for c in hex_code):
+            found = search_flights(query, limit=1)
+            if found and found[0].get("hex"):
+                hex_code = found[0]["hex"]
+        hist = get_flight_history(hex_code)
+        if hist.get("available") and hist.get("flights"):
+            flight_lines = [f"{f.get('callsign')} ({f.get('departure')} -> {f.get('arrival')})" for f in hist["flights"][:4]]
+            summary = f"Recent flights for {query.upper()}: " + ", ".join(flight_lines)
+        else:
+            summary = f"Recent flight history for {query.upper()} is currently unavailable, Sir."
+        return {"success": True, "history": hist, "summary": summary, "debrief": summary}
+
     def tool_weather_query(self, location_name: str) -> Dict[str, Any]:
         """Pulls live atmospheric telemetry and weather radar."""
         from modules.weather_intel import WeatherIntelEngine
@@ -400,6 +440,12 @@ class JarvisCognitiveLoop:
         if re.search(layer_verbs, t) and re.search(layer_nouns, t):
             return False
 
+        # Flight OSINT commands (where is BAW117, last flights of G-XXXX, show British Airways flights)
+        if re.search(r'\bwhere\s+is\s+(?:the\s+flight\s+|flight\s+)?[A-Za-z0-9\-]+', t) and not any(w in t for w in ("where were you", "where do you", "where am i", "where are you", "where is the capital")):
+            return False
+        if re.search(r'\b(?:last|recent|past)\s+flights?\b', t):
+            return False
+
         # Explicit tool keywords
         tool_keywords = [
             "turn by turn", "driving directions", "drive from", "driving route",
@@ -457,6 +503,10 @@ Available Tools:
   Parameters: {{"action": "weather", "location": "<city name or null>"}}
 - "flights": Scan global military and civilian ADS-B airspace radar transponders.
   Parameters: {{"action": "flights", "query": "<optional query/region>"}}
+- "flight_search": Search active flights by callsign (BAW117), flight number (BA117), airline name (British Airways), registration, or ICAO24 hex.
+  Parameters: {{"action": "flight_search", "query": "<flight, airline, reg, or hex>"}}
+- "flight_history": Retrieve past flight history for an aircraft by registration or ICAO24 hex.
+  Parameters: {{"action": "flight_history", "query": "<registration or hex>"}}
 - "satellites": Orbital telemetry, satellite transit, ISS tracking.
   Parameters: {{"action": "satellites", "query": "<satellite name or ISS>"}}
 - "conflicts": Global active warzones, frontlines, and theatre conflict telemetry.
@@ -551,6 +601,10 @@ Rules:
                                     item["progress_phrase"] = f"Pulling regional atmospheric radar and precipitation telemetry for {loc.title()}, {sal}..."
                                 elif action == "flights":
                                     item["progress_phrase"] = f"Scanning global ADS-B military and civilian airspace transponders, {sal}..."
+                                elif action == "flight_search":
+                                    item["progress_phrase"] = f"Scanning active radar and positioning telemetry for flight {item.get('query', '')}, {sal}..."
+                                elif action == "flight_history":
+                                    item["progress_phrase"] = f"Retrieving historical flight legs for {item.get('query', '')} via OpenSky Network, {sal}..."
                                 elif action == "satellites":
                                     item["progress_phrase"] = f"Acquiring real-time orbital telemetry for {str(item.get('query', 'ISS')).upper()}, {sal}..."
                                 elif action == "conflicts":
@@ -648,6 +702,37 @@ Rules:
                 "action": "cyber_recon",
                 "target": tgt,
                 "progress_phrase": f"Initiating OSINT cyber intelligence sweep on {tgt}, {sal}..."
+            }]
+
+        # Check explicit Flight OSINT commands: "where is BAW117", "show British Airways flights", "last flights of G-XXXX"
+        m_where_is = re.search(r'\bwhere\s+is\s+(?:the\s+flight\s+|flight\s+)?([A-Za-z0-9\-]+)\b', text_lower)
+        if m_where_is:
+            raw_target = m_where_is.group(1).strip()
+            if raw_target.lower() not in ("you", "it", "this", "that", "he", "she", "my", "your", "the", "model", "we"):
+                target_f = raw_target.upper()
+                return [{
+                    "action": "flight_search",
+                    "query": target_f,
+                    "progress_phrase": f"Scanning active radar and positioning telemetry for flight {target_f}, {sal}..."
+                }]
+
+        m_show_airline = re.search(r'\b(?:show|display|find|list|track)\s+([A-Za-z0-9\s]+?)\s+flights?\b', text_lower)
+        if m_show_airline:
+            raw_airline = m_show_airline.group(1).strip()
+            if raw_airline.lower() not in ("all", "active", "military", "me", "some", "the", "commercial"):
+                return [{
+                    "action": "flight_search",
+                    "query": raw_airline,
+                    "progress_phrase": f"Scanning live airspace radar for {raw_airline} flights, {sal}..."
+                }]
+
+        m_last_flights = re.search(r'\b(?:last|recent|past)\s+flights?\s+(?:of|for)\s+([A-Za-z0-9\-]+)\b', text_lower)
+        if m_last_flights:
+            target_tail = m_last_flights.group(1).strip().upper()
+            return [{
+                "action": "flight_history",
+                "query": target_tail,
+                "progress_phrase": f"Retrieving historical flight legs for {target_tail} via OpenSky Network, {sal}..."
             }]
 
         plan_steps = []
@@ -1043,6 +1128,16 @@ Rules:
                     res = self.tool_flight_radar()
                     count = res.get("count", 0)
                     obs["result"] = f"ADS-B radar active: {count} military contacts airborne with live transponder telemetry."
+
+                elif action == "flight_search":
+                    q = step.get("query", "")
+                    res = self.tool_flight_search(q)
+                    obs["result"] = res.get("summary", f"Flight search executed for {q}.")
+
+                elif action == "flight_history":
+                    q = step.get("query", "")
+                    res = self.tool_flight_history(q)
+                    obs["result"] = res.get("summary", f"Flight history retrieved for {q}.")
 
                 elif action == "annotate":
                     res = self.tool_annotate_area(

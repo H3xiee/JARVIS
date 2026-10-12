@@ -23,6 +23,21 @@ def sanitize_username(username: str) -> str:
     return re.sub(r"[^a-zA-Z0-9._-]", "", str(username))
 
 
+def _update_browser_unavailable_note(target: Target):
+    """Ensure exactly one summary note exists for JS-heavy platforms checked without browser."""
+    unconfirmed_js = len([e for e in target.entities if e.metadata.get("verification_method") == "http_no_browser"])
+    if unconfirmed_js > 0:
+        new_note = (
+            f"Browser verification unavailable: JS-heavy platforms ({unconfirmed_js} hits) "
+            f"were checked by plain HTTP only and are unconfirmed."
+        )
+        for i, n in enumerate(target.notes):
+            if "Browser verification unavailable" in n:
+                target.notes[i] = new_note
+                return
+        target.notes.append(new_note)
+
+
 async def run(target: Target, username: str, on_find=None, lessons_store=None) -> None:
     clean_user = sanitize_username(username)
     if not clean_user:
@@ -50,6 +65,7 @@ async def run(target: Target, username: str, on_find=None, lessons_store=None) -
             pass
 
     await _run_instagram_probe(target, clean_user, on_find, lessons_store)
+    _update_browser_unavailable_note(target)
 
 
 async def _run_sherlock(target, username, on_find, lessons_store=None):
@@ -104,8 +120,12 @@ async def _run_sherlock(target, username, on_find, lessons_store=None):
                     # Verify before trusting
                     case_slug = target.case_slug
                     entity = await verify_hit(entity, lessons_store=lessons_store, case_slug=case_slug)
-                    if target.add_entity(entity) and on_find:
-                        await on_find(entity)
+                    if entity.metadata.get("verified") is False:
+                        target.add_rejected_entity(entity)
+                    else:
+                        if target.add_entity(entity) and on_find:
+                            await on_find(entity)
+        _update_browser_unavailable_note(target)
     except FileNotFoundError:
         note = "sherlock not found on PATH or in ~/.local/bin, skipped"
         logger.warning(f"[social_enum] {note}")
@@ -186,10 +206,14 @@ async def _run_maigret(target, username, on_find, lessons_store=None):
                         # Verify before trusting
                         case_slug = target.case_slug
                         entity = await verify_hit(entity, lessons_store=lessons_store, case_slug=case_slug)
-                        if target.add_entity(entity) and on_find:
-                            await on_find(entity)
+                        if entity.metadata.get("verified") is False:
+                            target.add_rejected_entity(entity)
+                        else:
+                            if target.add_entity(entity) and on_find:
+                                await on_find(entity)
             except Exception as json_err:
                 logger.warning(f"[social_enum] Error parsing maigret output: {json_err}")
+        _update_browser_unavailable_note(target)
     except FileNotFoundError:
         note = "maigret not found on PATH or in ~/.local/bin, skipped"
         logger.warning(f"[social_enum] {note}")
@@ -212,8 +236,10 @@ async def _run_instagram_probe(target, username, on_find, lessons_store=None):
     reliably covers Instagram.
     """
     try:
-        from modules.headless_probe import probe as headless_probe
-    except ImportError:
+        from modules.headless_probe import probe as headless_probe, is_playwright_available
+        if not is_playwright_available():
+            return
+    except (ImportError, Exception):
         return
 
     try:
@@ -236,6 +262,8 @@ async def _run_instagram_probe(target, username, on_find, lessons_store=None):
                 metadata={
                     "url": url,
                     "verified": True,
+                    "verification_method": "browser",
+                    "verification_reason": "browser confirmed",
                     "page_title": result.get("title", ""),
                     "og_image": result.get("og_image"),
                     "description": result.get("og_description"),
@@ -254,5 +282,22 @@ async def _run_instagram_probe(target, username, on_find, lessons_store=None):
 
             if target.add_entity(entity) and on_find:
                 await on_find(entity)
+        else:
+            entity = Entity(
+                entity_type="username",
+                value=username,
+                sources=["headless_probe"],
+                confidence=0.3,
+                platform="Instagram",
+                metadata={
+                    "url": url,
+                    "verified": False,
+                    "verification_method": "browser",
+                    "verification_reason": "not found in browser",
+                    "page_title": result.get("title", ""),
+                },
+            )
+            target.add_rejected_entity(entity)
+        _update_browser_unavailable_note(target)
     except Exception:
         pass

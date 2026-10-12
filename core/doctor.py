@@ -93,3 +93,19 @@ def run_doctor() -> None:
     for key in CONFIG_KEY_SPECS:
         cfg = "YES" if is_key_configured(key) else "NO"
         print(f"  {key}: Configured: {cfg}")
+
+    print("\nHeadless Browser (Playwright):")
+    try:
+        from modules.headless_probe import get_playwright_status
+        pw_status = get_playwright_status()
+        pw_avail = "YES" if pw_status.get("available") else "NO"
+        print(f"  Worker Available: {pw_avail}")
+        print(f"  Interpreter: {pw_status.get('interpreter', 'not found')}")
+        print(f"  Browser: {pw_status.get('browser', 'none')}")
+        if not pw_status.get("available"):
+            print(f"  Reason: {pw_status.get('reason', 'unknown')}")
+            print(f"  Fix: Run `{pw_status.get('setup_cmd', 'bash scripts/setup_playwright.sh')}`")
+    except Exception as exc:
+        print(f"  Worker Available: NO")
+        print(f"  Reason: Error querying status ({exc})")
+        print(f"  Fix: Run `bash scripts/setup_playwright.sh`")

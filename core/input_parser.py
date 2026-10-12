@@ -14,6 +14,14 @@ class ParsedTarget:
 def parse(raw: str) -> ParsedTarget:
     raw = raw.strip().strip("'\"")
 
+    # File / image path
+    if (
+        re.search(r"\.(?:png|jpe?g|gif|webp|bmp|tiff|svg|pdf|txt|csv|json|doc|docx|mp4|mov|mkv|zip|tar|gz)$", raw, re.IGNORECASE)
+        or "/" in raw
+        or "\\" in raw
+    ):
+        return ParsedTarget("file", raw, {"error": f"File or image target '{raw}' is not supported for OSINT investigation."})
+
     # Email
     if re.match(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$", raw):
         local, domain = raw.lower().rsplit("@", 1)
@@ -54,4 +62,14 @@ def parse(raw: str) -> ParsedTarget:
             },
         )
 
-    raise ValueError(f"Cannot classify: {raw!r}")
+    return ParsedTarget("unsupported", raw, {"error": f"Cannot classify: {raw!r}"})
+
+
+def is_classifiable_target(raw: str) -> bool:
+    if not raw or not isinstance(raw, str) or not raw.strip():
+        return False
+    try:
+        parsed = parse(raw)
+        return parsed.target_type in ("username", "email", "domain", "ip", "name")
+    except Exception:
+        return False

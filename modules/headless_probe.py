@@ -1,15 +1,20 @@
 # modules/headless_probe.py
 """
 Headless browser probe for JS-heavy platforms.
-Uses Playwright (Chromium) to render pages that httpx can't verify.
-Degrades gracefully if Playwright is not installed.
+Uses an out-of-process Playwright worker (~/.jarvis/pw-venv/bin/python3 modules/_pw_worker.py)
+to render pages that httpx can't verify.
+Degrades gracefully if the venv or Playwright is not available.
 """
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
 import asyncio
+import json
 import re
+
+VENV_PYTHON = Path.home() / ".jarvis" / "pw-venv" / "bin" / "python3"
+WORKER_SCRIPT = Path(__file__).parent / "_pw_worker.py"
 
 # Platforms known to require JS rendering for profile verification
 JS_HEAVY_PLATFORMS = {
@@ -39,142 +44,160 @@ _NOT_FOUND_RE = re.compile(
 )
 
 
-async def get_browser_context(pw):
-    browser = await pw.chromium.launch(
-        headless=True,
-        args=["--no-sandbox", "--disable-dev-shm-usage"],
-    )
-    context = await browser.new_context(
-        user_agent=(
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
-        ),
-        viewport={"width": 1280, "height": 800},
-    )
-    return browser, context
+async def get_browser_context(pw=None):
+    """Deprecated: browser runs out-of-process via _pw_worker.py."""
+    return None, None
+
+
+_PLAYWRIGHT_STATUS = None
+
+
+def get_playwright_status() -> dict:
+    """
+    Check status of the out-of-process Playwright worker.
+    Caches the result for the process lifetime.
+    """
+    global _PLAYWRIGHT_STATUS
+    if _PLAYWRIGHT_STATUS is not None:
+        return _PLAYWRIGHT_STATUS
+
+    if not VENV_PYTHON.is_file():
+        _PLAYWRIGHT_STATUS = {
+            "available": False,
+            "interpreter": str(VENV_PYTHON),
+            "browser": "none",
+            "executable_path": "not found",
+            "reason": f"Isolated venv not found at {VENV_PYTHON}",
+            "setup_cmd": "bash scripts/setup_playwright.sh",
+        }
+        return _PLAYWRIGHT_STATUS
+
+    if not WORKER_SCRIPT.is_file():
+        _PLAYWRIGHT_STATUS = {
+            "available": False,
+            "interpreter": str(VENV_PYTHON),
+            "browser": "none",
+            "executable_path": "not found",
+            "reason": f"Worker script missing at {WORKER_SCRIPT}",
+            "setup_cmd": "bash scripts/setup_playwright.sh",
+        }
+        return _PLAYWRIGHT_STATUS
+
+    try:
+        import subprocess
+        p = subprocess.run(
+            [str(VENV_PYTHON), str(WORKER_SCRIPT), "--check"],
+            capture_output=True,
+            text=True,
+            timeout=5.0,
+        )
+        if p.returncode == 0:
+            data = json.loads(p.stdout)
+            if data.get("ok"):
+                _PLAYWRIGHT_STATUS = {
+                    "available": True,
+                    "interpreter": str(VENV_PYTHON),
+                    "browser": data.get("browser", "chromium"),
+                    "executable_path": data.get("executable_path", ""),
+                    "reason": "OK",
+                    "setup_cmd": "bash scripts/setup_playwright.sh",
+                }
+                return _PLAYWRIGHT_STATUS
+            else:
+                _PLAYWRIGHT_STATUS = {
+                    "available": False,
+                    "interpreter": str(VENV_PYTHON),
+                    "browser": "none",
+                    "executable_path": "none",
+                    "reason": data.get("error", "Worker check failed"),
+                    "setup_cmd": "bash scripts/setup_playwright.sh",
+                }
+                return _PLAYWRIGHT_STATUS
+        else:
+            err = (p.stderr or p.stdout or "").strip()
+            _PLAYWRIGHT_STATUS = {
+                "available": False,
+                "interpreter": str(VENV_PYTHON),
+                "browser": "none",
+                "executable_path": "none",
+                "reason": f"Worker exited with code {p.returncode}: {err}",
+                "setup_cmd": "bash scripts/setup_playwright.sh",
+            }
+            return _PLAYWRIGHT_STATUS
+    except Exception as exc:
+        _PLAYWRIGHT_STATUS = {
+            "available": False,
+            "interpreter": str(VENV_PYTHON),
+            "browser": "none",
+            "executable_path": "none",
+            "reason": f"Worker check error: {exc}",
+            "setup_cmd": "bash scripts/setup_playwright.sh",
+        }
+        return _PLAYWRIGHT_STATUS
+
+
+def is_playwright_available() -> bool:
+    """Check if the out-of-process Playwright worker is functional."""
+    status = get_playwright_status()
+    return status.get("available", False)
 
 
 async def probe(url: str, platform: str, screenshot_path: str|None = None) -> dict:
     """
-    Load a URL in headless Chromium, wait for JS rendering, check
-    whether a real profile exists, and optionally capture a screenshot.
+    Load a URL in headless Chromium via the out-of-process worker,
+    wait for JS rendering, check whether a real profile exists,
+    and optionally capture a screenshot.
 
     Returns:
-        {"exists": bool, "title": str, "og_image": str|None}
+        {"exists": bool, "title": str, "og_image": str|None, "og_description": str|None, ...}
     """
-    result = {"exists": False, "title": "", "og_image": None}
+    result = {
+        "exists": False,
+        "title": "",
+        "og_image": None,
+        "og_description": None,
+        "status_code": None,
+        "screenshot_path": None,
+        "not_found_signals": [],
+    }
 
-    try:
-        from playwright.async_api import async_playwright
-    except ImportError:
-        # Playwright not installed — degrade silently
+    if not is_playwright_available():
         return result
 
-    browser = None
+    req_data = {
+        "url": url,
+        "platform": platform,
+        "screenshot_path": screenshot_path,
+        "timeout": 15.0,
+    }
+
     try:
-        async with async_playwright() as pw:
-            browser, context = await get_browser_context(pw)
-            page = await context.new_page()
+        proc = await asyncio.create_subprocess_exec(
+            str(VENV_PYTHON),
+            str(WORKER_SCRIPT),
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        stdout_bytes, _ = await asyncio.wait_for(
+            proc.communicate(json.dumps(req_data).encode("utf-8")),
+            timeout=22.0,
+        )
 
-            try:
-                await page.goto(url, wait_until="networkidle", timeout=12000)
-            except Exception:
-                # Timeout or navigation error — try domcontentloaded fallback
-                try:
-                    await page.goto(url, wait_until="domcontentloaded", timeout=8000)
-                except Exception:
-                    return result
-
-            # Extra settle time for late-rendering SPAs
-            await asyncio.sleep(1.5)
-
-            # Extract title
-            title = await page.title() or ""
-            result["title"] = title.strip()
-
-            # Extract og:image
-            og_image = await page.evaluate("""
-                () => {
-                    const el = document.querySelector('meta[property="og:image"]');
-                    return el ? el.getAttribute('content') : null;
-                }
-            """)
-            result["og_image"] = og_image
-
-            # Extract og:description
-            og_desc = await page.evaluate("""
-                () => {
-                    const el = document.querySelector('meta[property="og:description"]') || document.querySelector('meta[name="description"]');
-                    return el ? el.getAttribute('content') : null;
-                }
-            """)
-            result["og_description"] = og_desc
-
-            # Extract og:title for additional signal
-            og_title = await page.evaluate("""
-                () => {
-                    const el = document.querySelector('meta[property="og:title"]');
-                    return el ? el.getAttribute('content') : null;
-                }
-            """)
-
-            # Get visible text for not-found detection
-            body_text = await page.evaluate("""
-                () => document.body ? document.body.innerText.substring(0, 3000) : ''
-            """)
-
-            # Decision logic
-            has_not_found = bool(_NOT_FOUND_RE.search(body_text or ""))
-            has_not_found_title = bool(_NOT_FOUND_RE.search(title))
-
-            # Generic titles that don't confirm a real profile
-            platform_lower = platform.lower()
-            generic_titles = {
-                "instagram": ["instagram"],
-                "tiktok": ["tiktok", "make your day"],
-                "facebook": ["facebook", "log in", "log into facebook"],
-                "twitter": ["x", "twitter"],
-                "x": ["x", "twitter"],
-                "threads": ["threads"],
-                "snapchat": ["snapchat"],
-                "linkedin": ["linkedin"],
-            }
-            is_generic_title = False
-            for gt in generic_titles.get(platform_lower, []):
-                if title.lower().strip() == gt.lower().strip():
-                    is_generic_title = True
-                    break
-
-            has_profile_signal = (
-                (og_title and not _NOT_FOUND_RE.search(og_title))
-                or (og_image and "default" not in og_image.lower())
-                or (title and not is_generic_title and not has_not_found_title)
-            )
-
-            if has_not_found:
-                result["exists"] = False
-            elif has_profile_signal:
-                result["exists"] = True
-                if screenshot_path:
-                    try:
-                        Path(screenshot_path).parent.mkdir(parents=True, exist_ok=True)
-                        await page.screenshot(path=screenshot_path, full_page=True)
-                    except Exception:
-                        pass
-            else:
-                # Inconclusive — lean towards not existing
-                result["exists"] = False
-
-            await context.close()
-
+        if proc.returncode == 0 and stdout_bytes:
+            data = json.loads(stdout_bytes.decode("utf-8"))
+            result.update({
+                "exists": bool(data.get("exists", False)),
+                "title": data.get("page_title") or data.get("title") or "",
+                "og_image": data.get("og_image"),
+                "og_description": data.get("og_description"),
+                "status_code": data.get("status_code"),
+                "screenshot_path": data.get("screenshot_path"),
+                "not_found_signals": data.get("not_found_signals", []),
+                "final_url": data.get("final_url", url),
+            })
+            return result
+        else:
+            return result
     except Exception:
-        # Any Playwright crash — degrade silently
-        pass
-    finally:
-        if browser:
-            try:
-                await browser.close()
-            except Exception:
-                pass
-
-    return result
+        return result

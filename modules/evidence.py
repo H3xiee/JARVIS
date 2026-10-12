@@ -1,12 +1,13 @@
 # modules/evidence.py
 """
 Evidence capture module.
-Takes full-page screenshots of verified targets and saves them.
+Takes full-page screenshots of verified targets via the out-of-process Playwright worker.
 """
 import sys
 from pathlib import Path
 from datetime import datetime
 import asyncio
+import json
 
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -14,8 +15,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 async def capture(url: str, case_slug: str, entity_id: str) -> dict:
     """
-    Capture a full-page screenshot of a URL.
-    Uses the browser context setup from modules/headless_probe.py.
+    Capture a full-page screenshot of a URL via the out-of-process Playwright worker.
 
     Returns:
         {"screenshot_path": str|None, "captured_at": str, "success": bool}
@@ -27,52 +27,43 @@ async def capture(url: str, case_slug: str, entity_id: str) -> dict:
     }
 
     try:
-        from playwright.async_api import async_playwright
-        from modules.headless_probe import get_browser_context
+        from modules.headless_probe import is_playwright_available, VENV_PYTHON, WORKER_SCRIPT
+        if not is_playwright_available():
+            return result
     except Exception:
-        # Playwright not available — degrade silently
         return result
 
-    browser = None
     try:
         evidence_dir = PROJECT_ROOT / "cases" / case_slug / "evidence"
         evidence_dir.mkdir(parents=True, exist_ok=True)
         screenshot_path = str(evidence_dir / f"{entity_id}.png")
 
-        async with async_playwright() as pw:
-            try:
-                browser, context = await get_browser_context(pw)
-                page = await context.new_page()
+        req_data = {
+            "url": url,
+            "platform": "web",
+            "screenshot_path": screenshot_path,
+            "require_screenshot": True,
+            "timeout": 15.0,
+        }
 
-                try:
-                    await page.goto(url, wait_until="networkidle", timeout=10000)
-                except Exception:
-                    try:
-                        await page.goto(url, wait_until="domcontentloaded", timeout=6000)
-                    except Exception:
-                        return result
+        proc = await asyncio.create_subprocess_exec(
+            str(VENV_PYTHON),
+            str(WORKER_SCRIPT),
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        stdout_bytes, _ = await asyncio.wait_for(
+            proc.communicate(json.dumps(req_data).encode("utf-8")),
+            timeout=22.0,
+        )
 
-                # Extra settle time
-                await asyncio.sleep(1.0)
-
-                # Capture screenshot
-                await page.screenshot(path=screenshot_path, full_page=True)
-                await context.close()
-
+        if proc.returncode == 0 and stdout_bytes:
+            data = json.loads(stdout_bytes.decode("utf-8"))
+            if data.get("screenshot_path") and Path(screenshot_path).exists():
                 result["screenshot_path"] = f"cases/{case_slug}/evidence/{entity_id}.png"
                 result["success"] = True
-            except Exception:
-                pass
-
     except Exception:
-        # Graceful degradation: handle silently
         pass
-    finally:
-        if browser:
-            try:
-                await browser.close()
-            except Exception:
-                pass
 
     return result
-

@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
+import asyncio
 import re
 import httpx
 from core.target_model import Entity
@@ -80,6 +81,8 @@ async def verify_hit(entity: Entity, lessons_store=None, case_slug: str = None) 
     api_confirmed_sources = {"github", "github_commits"}
     if any(src in api_confirmed_sources for src in entity.sources):
         entity.metadata["verified"] = True
+        entity.metadata["verification_method"] = "api"
+        entity.metadata["verification_reason"] = "api confirmed"
         # Capture screenshot for API confirmed source if a URL and case_slug exist
         url = entity.metadata.get("url", "")
         if url and case_slug:
@@ -97,6 +100,8 @@ async def verify_hit(entity: Entity, lessons_store=None, case_slug: str = None) 
     url = entity.metadata.get("url", "")
     if not url:
         # No URL to verify — leave as-is
+        entity.metadata.setdefault("verification_method", "none")
+        entity.metadata.setdefault("verification_reason", "no url to verify")
         return entity
 
     platform = (entity.platform or "").strip()
@@ -114,16 +119,20 @@ async def verify_hit(entity: Entity, lessons_store=None, case_slug: str = None) 
 
     # ── Route: JS-heavy platforms → headless probe ─────────────
     # Make check case-insensitive to ensure matches like "Instagram" align with JS_HEAVY_PLATFORMS
-    if platform.lower() in JS_HEAVY_PLATFORMS and headless_probe is not None:
+    from modules.headless_probe import is_playwright_available
+    pw_ok = is_playwright_available()
+    is_js_heavy = platform.lower() in JS_HEAVY_PLATFORMS
+    if is_js_heavy and headless_probe is not None and pw_ok:
         print(f"[verify] Routing '{platform}' via headless_probe for '{entity.value}'")
         return await _verify_via_headless(entity, url, platform, case_slug)
 
     # ── Route: standard HTTP verification ──────────────────────
-    print(f"[verify] Routing '{platform}' via standard httpx fetch for '{entity.value}'")
-    entity = await _verify_via_http(entity, url, platform)
+    method = "http_no_browser" if is_js_heavy else "http"
+    print(f"[verify] Routing '{platform}' via standard httpx fetch for '{entity.value}' (method={method})")
+    entity = await _verify_via_http(entity, url, platform, method=method)
     
-    # ── Capture screenshot if verified and case_slug provided ──
-    if entity.metadata.get("verified") is True and case_slug:
+    # ── Capture screenshot if verified, case_slug provided, and Playwright available ──
+    if entity.metadata.get("verified") is True and case_slug and pw_ok:
         try:
             import modules.evidence as evidence
             entity_id = f"{entity.entity_type}_{entity.value}_{platform.lower()}"
@@ -139,6 +148,7 @@ async def verify_hit(entity: Entity, lessons_store=None, case_slug: str = None) 
 
 async def _verify_via_headless(entity: Entity, url: str, platform: str, case_slug: str = None) -> Entity:
     """Verify via Playwright headless browser."""
+    entity.metadata["verification_method"] = "browser"
     try:
         entity_id = f"{entity.entity_type}_{entity.value}_{platform.lower()}"
         entity_id = re.sub(r"[^a-zA-Z0-9_\-]", "_", entity_id)
@@ -153,6 +163,7 @@ async def _verify_via_headless(entity: Entity, url: str, platform: str, case_slu
 
         if result["exists"]:
             entity.metadata["verified"] = True
+            entity.metadata["verification_reason"] = "browser confirmed"
             entity.metadata["page_title"] = result.get("title", "")
             if result.get("og_description"):
                 entity.metadata["description"] = result.get("og_description")
@@ -160,6 +171,7 @@ async def _verify_via_headless(entity: Entity, url: str, platform: str, case_slu
                 entity.metadata["screenshot_path"] = f"cases/{case_slug}/evidence/{entity_id}.png"
         else:
             entity.metadata["verified"] = False
+            entity.metadata["verification_reason"] = "not found in browser"
             entity.confidence *= 0.3
             if screenshot_path:
                 try:
@@ -170,31 +182,78 @@ async def _verify_via_headless(entity: Entity, url: str, platform: str, case_slu
     except Exception:
         # Headless probe crashed — inconclusive
         entity.metadata["verified"] = None
+        entity.metadata["verification_reason"] = "browser probe failed"
         entity.confidence *= 0.6
 
     return entity
 
 
-async def _verify_via_http(entity: Entity, url: str, platform: str) -> Entity:
+async def _verify_via_http(entity: Entity, url: str, platform: str, method: str = "http") -> Entity:
     """Verify via direct HTTP fetch + HTML content analysis."""
+    entity.metadata["verification_method"] = method
     try:
         async with httpx.AsyncClient(
-            timeout=10,
+            timeout=10.0,
             headers={"User-Agent": _USER_AGENT},
             follow_redirects=True,
             max_redirects=5,
         ) as client:
-            r = await client.get(url)
+            last_resp = None
+            last_exc = None
+            for attempt in range(2):
+                if attempt > 0:
+                    await asyncio.sleep(0.5)
+                try:
+                    r = await client.get(url)
+                    if r.status_code >= 500:
+                        last_resp = r
+                        continue
+                    last_resp = r
+                    last_exc = None
+                    break
+                except httpx.TimeoutException as exc:
+                    last_exc = exc
+                    continue
+                except Exception as exc:
+                    last_exc = exc
+                    break
+
+            if last_exc is not None:
+                entity.metadata["verified"] = None
+                if isinstance(last_exc, httpx.TimeoutException):
+                    entity.metadata["verification_reason"] = "timeout after retry"
+                    entity.confidence *= 0.7
+                else:
+                    entity.metadata["verification_reason"] = "fetch error after retry"
+                    entity.confidence *= 0.6
+                return entity
+
+            if last_resp is None:
+                entity.metadata["verified"] = None
+                entity.metadata["verification_reason"] = "no response"
+                entity.confidence *= 0.6
+                return entity
+
+            r = last_resp
+
+            # 5xx after retry
+            if r.status_code >= 500:
+                entity.metadata["verified"] = None
+                entity.metadata["verification_reason"] = "http 5xx after retry"
+                entity.confidence *= 0.6
+                return entity
 
             # Hard 404/410 — clear signal
             if r.status_code in (404, 410):
                 entity.metadata["verified"] = False
+                entity.metadata["verification_reason"] = f"http {r.status_code}"
                 entity.confidence *= 0.2
                 return entity
 
-            # Non-200 — inconclusive
+            # Other Non-200 — inconclusive
             if r.status_code != 200:
                 entity.metadata["verified"] = None
+                entity.metadata["verification_reason"] = f"http {r.status_code}"
                 entity.confidence *= 0.6
                 return entity
 
@@ -226,31 +285,47 @@ async def _verify_via_http(entity: Entity, url: str, platform: str) -> Entity:
 
             if has_not_found:
                 entity.metadata["verified"] = False
+                entity.metadata["verification_reason"] = "not-found text matched"
                 entity.confidence *= 0.3
+            elif method == "http_no_browser":
+                # Honest handling for JS-heavy platforms checked with http_no_browser:
+                # Clear 404 or not-found text may still reject, but must NEVER be verified=True.
+                entity.metadata["verified"] = None
+                entity.metadata["verification_reason"] = "needs browser check"
+                if page_title:
+                    entity.metadata["page_title"] = page_title
+                if og_desc:
+                    entity.metadata["description"] = og_desc
             elif has_profile_signal:
                 entity.metadata["verified"] = True
+                entity.metadata["verification_reason"] = "profile metadata present"
                 entity.metadata["page_title"] = page_title
                 if og_desc:
                     entity.metadata["description"] = og_desc
             elif not is_generic_title and page_title:
                 # Has a non-generic title but no og tags — cautiously accept
                 entity.metadata["verified"] = True
+                entity.metadata["verification_reason"] = "profile title matched"
                 entity.metadata["page_title"] = page_title
                 if og_desc:
                     entity.metadata["description"] = og_desc
+            elif is_generic_title:
+                entity.metadata["verified"] = None
+                entity.metadata["verification_reason"] = "generic or login title"
+                entity.confidence *= 0.6
+                if page_title:
+                    entity.metadata["page_title"] = page_title
             else:
                 # Inconclusive — no clear signals either way
                 entity.metadata["verified"] = None
+                entity.metadata["verification_reason"] = "inconclusive"
                 entity.confidence *= 0.6
-
-    except httpx.TimeoutException:
-        # Timeout — inconclusive, don't penalize too hard
-        entity.metadata["verified"] = None
-        entity.confidence *= 0.7
 
     except Exception:
         # Any other fetch error — inconclusive
         entity.metadata["verified"] = None
+        entity.metadata.setdefault("verification_method", method)
+        entity.metadata.setdefault("verification_reason", "fetch error")
         entity.confidence *= 0.6
 
     return entity

@@ -316,6 +316,15 @@ The automated installer will:
 - Mount desktop application dependencies (`pywebview`).
 - Register global `jarvis` command integration.
 
+### 3. Optional Features
+
+#### Headless Browser Verification (Playwright)
+For deep DOM rendering and screenshot capture on JavaScript-heavy platforms (e.g. Instagram, TikTok, LinkedIn, X):
+```bash
+bash scripts/setup_playwright.sh
+```
+This provisions an isolated environment at `~/.jarvis/pw-venv` without altering system packages, using system Chromium (`/usr/bin/chromium`) or downloading an isolated browser binary.
+
 ---
 
 ## Quick Start
@@ -376,6 +385,7 @@ This project is licensed under the [GNU General Public License v3 (GPLv3)](LICEN
 ## Acknowledgements & Inspirations
 
 - **[God's Eye View](https://github.com/bilawalsidhu/gods-eye-view)** by Bilawal Sidhu (MIT License): Inspiring tactical airspace tracking, 3D trajectory traces, atmospheric weather telemetry, and real-time agentic loop methodologies. Tactical models and telemetry datasets are adapted and credited under their respective open-source licenses.
+- **[OpenFlights](https://openflights.org/data.html)**: Bundled airline dataset (`data/airlines.dat`) licensed under the Open Database License (ODbL) v1.0 and Database Contents License (DbCL) v1.0.
 
 ---
 
