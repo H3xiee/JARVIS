@@ -41,7 +41,8 @@ class Entity:
     def entity_id(self) -> str:
         plat = self.platform or "api"
         clean_val = re.sub(r"[^a-zA-Z0-9_\-]", "_", str(self.value).lower())
-        return f"{self.entity_type}_{clean_val}_{plat.lower()}"
+        clean_plat = re.sub(r"[^a-zA-Z0-9_\-]", "_", str(plat).lower())
+        return f"{self.entity_type}_{clean_val}_{clean_plat}"
 
 
 
@@ -150,7 +151,15 @@ class Target:
 
     @property
     def case_slug(self) -> str:
-        return self.primary.replace("@", "_").replace(".", "_").replace(" ", "_")
+        s = str(self.primary or "").replace("\x00", "")
+        while ".." in s:
+            s = s.replace("..", "")
+        s = s.replace("/", "_").replace("\\", "_")
+        s = re.sub(r"[^a-zA-Z0-9_\-\.\+]", "_", s)
+        s = s.strip()
+        if not s or s in (".", ".."):
+            s = "target"
+        return s
 
     def to_dict(self) -> Dict:
         return {

@@ -13,6 +13,7 @@ import re
 import time
 import json
 import threading
+import asyncio
 from typing import Dict, List, Any, Optional, Callable, Tuple
 
 from core.event_bus import get_event_bus, EventBus
@@ -446,6 +447,15 @@ class JarvisCognitiveLoop:
         if re.search(r'\b(?:last|recent|past)\s+flights?\b', t):
             return False
 
+        # Explicit OSINT keywords
+        osint_keywords = [
+            "investigate", "stalk", "accounts for", "accounts of", "profiles for", "profiles of",
+            "search username", "search for username", "exists online", "email breach",
+            "been breached", "been pwned", "been leaked", "cyber recon"
+        ]
+        if any(ok in t for ok in osint_keywords) or (("who is" in t or "look up" in t) and "online" in t):
+            return False
+
         # Explicit tool keywords
         tool_keywords = [
             "turn by turn", "driving directions", "drive from", "driving route",
@@ -513,6 +523,8 @@ Available Tools:
   Parameters: {{"action": "conflicts"}}
 - "cyber_recon": OSINT cyber reconnaissance, WHOIS, DNS, IP/domain scan.
   Parameters: {{"action": "cyber_recon", "target": "<domain, ip, or host>"}}
+- "osint_investigate": Deep OSINT target investigation across social platforms (Sherlock, Maigret), username existence, public profile verification, or email/domain/IP breach and exposure checks.
+  Parameters: {{"action": "osint_investigate", "target": "<clean username, email, domain, or IP>", "target_type": "<optional: username|email|domain|ip>"}}
 - "search": Live web search for recent news, facts, people, or real-time online queries.
   Parameters: {{"action": "search", "query": "<search terms>"}}
 - "diagnostics": System hardware diagnostics, CPU load, RAM usage, thermals.
@@ -547,7 +559,11 @@ Rules:
 2. If weather or traffic is requested but NO location was provided at all in the prompt, set location to null.
 3. For compound directives (e.g. "Navigate to Mumbai and see how traffic is flowing"), return all required actions in execution order: nav, traffic.
 4. If the directive is general conversation, a question answerable without tools, or does not need these tools, return [].
-5. Output ONLY a valid raw JSON array of objects. No markdown formatting, no explanations."""
+5. Distinguish OSINT vs Cyber Recon vs Search:
+   - Use "osint_investigate" when the user wants to find accounts, profiles, or usernames online, check if a username exists, check an email or account for breaches/leaks/exposure, or asks "who is <x> online".
+   - Use "cyber_recon" for technical infrastructure reconnaissance (DNS records, WHOIS registration, IP network blocks, Shodan open ports).
+   - Use "search" for general questions, news, websites, and general web information.
+6. Output ONLY a valid raw JSON array of objects. No markdown formatting, no explanations."""
 
         sys_prompt = "You are a precise tactical tool-selection agent. Output a raw JSON array of objects only."
 
@@ -611,6 +627,8 @@ Rules:
                                     item["progress_phrase"] = f"Synthesizing active warzone telemetry and frontline geometry, {sal}..."
                                 elif action == "cyber_recon":
                                     item["progress_phrase"] = f"Initiating OSINT cyber intelligence sweep on {item.get('target', 'target')}, {sal}..."
+                                elif action == "osint_investigate":
+                                    item["progress_phrase"] = f"Deploying autonomous OSINT swarm and account verification for {item.get('target', 'target')}, {sal}..."
                                 elif action == "search":
                                     item["progress_phrase"] = f"Scanning real-time web intelligence for '{item.get('query', text_strip)}'..."
                                 elif action == "diagnostics":
@@ -689,6 +707,26 @@ Rules:
                 "progress_phrase": f"Computing precision turn-by-turn road route and maneuvers, {sal}..."
             }]
 
+        # Check conversational and explicit OSINT target investigation directives
+        m_osint = (
+            re.search(r'^(?:(?:hey\s+)?jarvis,?\s*)?(?:find|get|list|show)\s+(?:accounts|profiles)\s+(?:for|of)\s+(?:username\s+|user\s+|target\s+)?(.+?)(?:\s*\?)?$', text_lower)
+            or re.search(r'^(?:(?:hey\s+)?jarvis,?\s*)?search\s+(?:for\s+)?username\s+(.+?)(?:\s*\?)?$', text_lower)
+            or re.search(r'^(?:(?:hey\s+)?jarvis,?\s*)?check\s+(?:if\s+)?(.+?)\s+exists(?:\s+online)?(?:\s*\?)?$', text_lower)
+            or re.search(r'^(?:(?:hey\s+)?jarvis,?\s*)?(?:who\s+is|look\s+up)\s+(.+?)\s+online(?:\s*\?)?$', text_lower)
+            or re.search(r'^(?:(?:hey\s+)?jarvis,?\s*)?(?:has\s+)?(.+?)\s+been\s+(?:breached|pwned|leaked)(?:\s*\?)?$', text_lower)
+            or re.search(r'^(?:(?:hey\s+)?jarvis,?\s*)?(?:has\s+(?:this\s+)?email\s+been\s+(?:breached|pwned|leaked)\s*[:\-]?\s*)(.+?)(?:\s*\?)?$', text_lower)
+            or re.search(r'^(?:(?:hey\s+)?jarvis,?\s*)?(?:email\s+breach(?:\s+check)?|check\s+email\s+breach)\s+(.+?)(?:\s*\?)?$', text_lower)
+            or re.search(r'^(?:(?:hey\s+)?jarvis,?\s*)?(?:investigate|stalk|deep_scan|recon|dox)\s+([^\s\?]+)', text_lower)
+        )
+        if m_osint:
+            cand = m_osint.group(1).strip().strip("'\"<>:;,?")
+            if cand and cand.lower() not in ("jarvis", "me", "you", "us", "him", "her", "them", "someone", "something"):
+                return [{
+                    "action": "osint_investigate",
+                    "target": cand,
+                    "progress_phrase": f"Deploying autonomous OSINT swarm and account verification for {cand}, {sal}..."
+                }]
+
         # Check explicit OSINT cyber reconnaissance directives
         has_cyber = any(kw in text_lower for kw in [
             "cyber recon", "osint scan", "scan domain", "recon domain",
@@ -719,7 +757,7 @@ Rules:
         m_show_airline = re.search(r'\b(?:show|display|find|list|track)\s+([A-Za-z0-9\s]+?)\s+flights?\b', text_lower)
         if m_show_airline:
             raw_airline = m_show_airline.group(1).strip()
-            if raw_airline.lower() not in ("all", "active", "military", "me", "some", "the", "commercial"):
+            if raw_airline.lower() not in ("all", "active", "military", "me", "some", "the", "commercial") and not any(w in raw_airline.lower().split() for w in ("nearest", "nearby", "local")):
                 return [{
                     "action": "flight_search",
                     "query": raw_airline,
@@ -1219,6 +1257,37 @@ Rules:
                 elif action == "cyber_recon":
                     res = self.tool_osiris_cyber_recon(step.get("target", "target"))
                     obs["result"] = f"Completed OSINT cyber recon sweep for {step.get('target')}."
+
+                elif action == "osint_investigate":
+                    tgt = str(step.get("target") or user_prompt).strip().strip("'\"<>:;,?")
+                    from core.input_parser import parse, is_classifiable_target
+                    if not is_classifiable_target(tgt):
+                        obs["result"] = f"Which target username, email, domain, or IP shall we investigate, {sal}?"
+                    else:
+                        parsed = parse(tgt)
+                        sanitized_target = parsed.value
+                        from core.orchestrator import Orchestrator, format_investigation_summary
+                        orch = Orchestrator()
+                        try:
+                            loop = asyncio.get_event_loop()
+                            if loop.is_running():
+                                import concurrent.futures
+                                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                                    target_obj = pool.submit(lambda: asyncio.run(orch.investigate(sanitized_target))).result()
+                            else:
+                                target_obj = loop.run_until_complete(orch.investigate(sanitized_target))
+                        except RuntimeError:
+                            target_obj = asyncio.run(orch.investigate(sanitized_target))
+
+                        summary_text = format_investigation_summary(target_obj)
+                        obs["result"] = summary_text
+                        self.task_manager.add_finding(task.task_id, TaskFinding(
+                            title=f"OSINT: {sanitized_target}",
+                            url=f"file://{target_obj.report_path}" if getattr(target_obj, 'report_path', None) else "#osint",
+                            snippet=summary_text,
+                            source="osint_investigate",
+                            extra=target_obj.to_dict()
+                        ))
 
                 elif action == "directions":
                     res = self.tool_osiris_directions(step.get("from", "Origin"), step.get("to", "Destination"))

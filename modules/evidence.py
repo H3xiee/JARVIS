@@ -61,7 +61,9 @@ async def capture(url: str, case_slug: str, entity_id: str) -> dict:
         if proc.returncode == 0 and stdout_bytes:
             data = json.loads(stdout_bytes.decode("utf-8"))
             if data.get("screenshot_path") and Path(screenshot_path).exists():
-                result["screenshot_path"] = f"cases/{case_slug}/evidence/{entity_id}.png"
+                canonical_url = f"/cases/{case_slug}/evidence/{entity_id}.png"
+                result["screenshot_path"] = canonical_url
+                result["screenshot_url"] = canonical_url
                 result["success"] = True
     except Exception:
         pass

@@ -49,11 +49,35 @@ class TaskManager:
             task.progress_pct = max(0, min(100, progress_pct))
             task.progress_msg = message
             task.updated_at = time.time()
+            if message:
+                logs = task.data.setdefault("logs", [])
+                if not logs or logs[-1] != message:
+                    logs.append(message)
 
         payload = {
             "task_id": task_id,
             "progress": task.progress_pct,
             "message": message,
+            "logs": task.data.get("logs", []),
+            "task": task.to_dict()
+        }
+        self._bus.emit("task.progress", payload)
+
+    def add_log(self, task_id: str, message: str):
+        task = self.get_task(task_id)
+        if not task:
+            return
+        with self._lock:
+            logs = task.data.setdefault("logs", [])
+            if message and (not logs or logs[-1] != message):
+                logs.append(message)
+            task.progress_msg = message
+            task.updated_at = time.time()
+
+        payload = {
+            "task_id": task_id,
+            "message": message,
+            "logs": task.data.get("logs", []),
             "task": task.to_dict()
         }
         self._bus.emit("task.progress", payload)

@@ -70,6 +70,6 @@ def is_classifiable_target(raw: str) -> bool:
         return False
     try:
         parsed = parse(raw)
-        return parsed.target_type in ("username", "email", "domain", "ip", "name")
+        return parsed.target_type in ("username", "email", "domain", "ip", "name", "phone")
     except Exception:
         return False

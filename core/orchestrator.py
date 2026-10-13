@@ -3,6 +3,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
 import asyncio
+import inspect
 from core.input_parser import parse
 from core.target_model import Target, Entity
 from core.case_brief import CaseBrief, InvestigationPlan
@@ -36,73 +37,128 @@ import modules.wayback as wayback
 
 
 class Orchestrator:
-    def __init__(self, on_status=None, on_find=None, on_done=None, lessons_store=None):
+    def __init__(self, on_status=None, on_find=None, on_done=None, lessons_store=None, task_id: Optional[str] = None):
         self.on_status = on_status
         self.on_find = on_find
         self.on_done = on_done
         self.lessons_store = lessons_store
+        self.task_id = task_id
 
-    async def investigate(self, raw_input: str, brief: CaseBrief = None, plan: InvestigationPlan = None) -> Target:
+    def _report_task_progress(self, pct: int, msg: str):
+        if self.task_id:
+            try:
+                from core.task_manager import get_task_manager
+                get_task_manager().update_progress(self.task_id, pct, msg)
+            except Exception:
+                pass
+
+    async def investigate(self, raw_input: str, brief: CaseBrief = None, plan: InvestigationPlan = None, task_id: str = None) -> Target:
+        if task_id:
+            self.task_id = task_id
+
         parsed = parse(raw_input)
         target = Target(primary=parsed.value, target_type=parsed.target_type)
+        self._report_task_progress(5, f"Target locked: {parsed.value} ({parsed.target_type})")
 
-        if plan and plan.reasoning:
-            target.log("investigation_plan_created", {
-                "reasoning": plan.reasoning,
-                "priority_order": plan.priority_order,
-                "skip_candidates": plan.skip_candidates
-            })
-            await self._status(f"Strategy: {plan.reasoning}")
-
-        await self._status(f"Parsed as {parsed.target_type}: {parsed.value}")
-
-        if parsed.target_type == "email":
-            await self._email_pipeline(target, parsed, plan=plan)
-        elif parsed.target_type == "username":
-            await self._username_pipeline(target, parsed, plan=plan)
-        elif parsed.target_type == "domain":
-            await self._domain_pipeline(target, parsed, plan=plan)
-        elif parsed.target_type == "ip":
-            await self._ip_pipeline(target, parsed, plan=plan)
-        elif parsed.target_type == "name":
-            await self._name_pipeline(target, parsed, plan=plan)
-
-        # ── Brief-driven pivots (additive, never replaces baseline) ──
-        hints_source = None
-        if plan and plan.extra_hints:
-            hints_source = plan
-        elif brief and brief.hints:
-            hints_source = brief
-
-        if hints_source:
-            await self._brief_driven_pivot(target, parsed, hints_source)
-
-        # ── Identity-driven pivots (auto-pivot on verified name) ──
-        await self._identity_driven_pivot(target)
-
-        # ── Discovered domain/email pivots ──
-        await self._pivot_on_discovered_entities(target)
-
-        # ── Correlation Engine ──
         try:
-            from core.correlation import correlate
-            await correlate(target)
-        except Exception:
-            pass
+            if plan and plan.reasoning:
+                target.log("investigation_plan_created", {
+                    "reasoning": plan.reasoning,
+                    "priority_order": plan.priority_order,
+                    "skip_candidates": plan.skip_candidates
+                })
+                await self._status(f"Strategy: {plan.reasoning}")
 
-        # ── Geocoding & EXIF Pass ──
-        try:
-            await self._geocode_pass(target)
+            await self._status(f"Parsed as {parsed.target_type}: {parsed.value}")
+            self._report_task_progress(15, f"Deploying autonomous OSINT swarm for: {parsed.value}...")
+
+            if parsed.target_type == "email":
+                await self._email_pipeline(target, parsed, plan=plan)
+            elif parsed.target_type == "username":
+                await self._username_pipeline(target, parsed, plan=plan)
+            elif parsed.target_type == "domain":
+                await self._domain_pipeline(target, parsed, plan=plan)
+            elif parsed.target_type == "ip":
+                await self._ip_pipeline(target, parsed, plan=plan)
+            elif parsed.target_type == "name":
+                await self._name_pipeline(target, parsed, plan=plan)
+            elif parsed.target_type == "phone":
+                msg = "Phone investigation is not supported yet"
+                await self._status(msg)
+                target.notes.append(msg)
+            elif parsed.target_type in ("file", "unsupported", "unknown"):
+                err_msg = parsed.metadata.get("error") or f"Target '{raw_input}' cannot be classified as a valid investigation target."
+                await self._status(f"Error: {err_msg}")
+                target.notes.append(err_msg)
+
+            if parsed.target_type in ("email", "username", "domain", "ip", "name"):
+                self._report_task_progress(60, "Running brief-driven & identity pivots...")
+                # ── Brief-driven pivots (additive, never replaces baseline) ──
+                hints_source = None
+                if plan and plan.extra_hints:
+                    hints_source = plan
+                elif brief and brief.hints:
+                    hints_source = brief
+
+                if hints_source:
+                    await self._brief_driven_pivot(target, parsed, hints_source)
+
+                # ── Identity-driven pivots (auto-pivot on verified name) ──
+                await self._identity_driven_pivot(target)
+
+                # ── Discovered domain/email pivots ──
+                await self._pivot_on_discovered_entities(target)
+
+                # ── Correlation Engine ──
+                self._report_task_progress(80, "Analyzing correlation ledger & geocoding...")
+                try:
+                    from core.correlation import correlate
+                    await correlate(target)
+                except Exception:
+                    pass
+
+                # ── Geocoding & EXIF Pass ──
+                try:
+                    await self._geocode_pass(target)
+                except Exception as e:
+                    print(f"[orchestrator] Error running geocode pass: {e}")
+
+            target.compute_risk()
+            target.save()
+
+            # ── HTML Report Generation ──
+            if parsed.target_type in ("email", "username", "domain", "ip", "name"):
+                try:
+                    from exporters.html_report import generate
+                    target.report_path = str(generate(target))
+                except Exception as e:
+                    target.report_path = None
+
+            self._report_task_progress(100, f"Reconnaissance complete: {len(target.entities)} entities identified")
+            if self.task_id:
+                try:
+                    from core.task_manager import get_task_manager
+                    get_task_manager().complete_task(
+                        self.task_id,
+                        summary=f"OSINT complete on {target.primary}: {len(target.entities)} entities identified (Risk: {target.risk_score})"
+                    )
+                except Exception:
+                    pass
+
+            if self.on_done:
+                res = self.on_done(target)
+                if inspect.isawaitable(res):
+                    await res
+
+            return target
         except Exception as e:
-            print(f"[orchestrator] Error running geocode pass: {e}")
-
-        target.compute_risk()
-        target.save()
-
-        if self.on_done:
-            await self.on_done(target)
-
-        return target
+            if self.task_id:
+                try:
+                    from core.task_manager import get_task_manager
+                    get_task_manager().fail_task(self.task_id, str(e))
+                except Exception:
+                    pass
+            raise
 
     # Backward-compatible alias — older scripts/configs may still call .stalk(...)
     stalk = investigate
@@ -422,13 +478,30 @@ class Orchestrator:
                 except Exception as e:
                     print(f"[orchestrator] Evidence capture trigger error: {e}")
 
+            if self.task_id:
+                try:
+                    from core.task_manager import get_task_manager
+                    from core.task import TaskFinding
+                    get_task_manager().add_finding(self.task_id, TaskFinding(
+                        title=f"{entity.entity_type.upper()}: {entity.value}",
+                        source=entity.platform or "OSINT Swarm",
+                        confidence=entity.confidence,
+                        extra=entity.metadata or {}
+                    ))
+                except Exception:
+                    pass
+
             if self.on_find:
-                await self.on_find(entity, target)
+                res = self.on_find(entity, target)
+                if inspect.isawaitable(res):
+                    await res
         return _cb
 
     async def _status(self, msg: str):
         if self.on_status:
-            await self.on_status(msg)
+            res = self.on_status(msg)
+            if inspect.isawaitable(res):
+                await res
 
     async def _pivot_on_discovered_entities(self, target: Target):
         """
@@ -572,3 +645,186 @@ def log_tool_fallback(target, module: str, count: int):
         "module": module,
         "found": count
     })
+
+
+def get_sources_and_statuses(target: Target) -> Dict[str, Dict[str, str]]:
+    """
+    Extracts status (ok, skipped, failed, rate limited) and details for all sources.
+    """
+    status: Dict[str, Dict[str, str]] = {}
+
+    # 1. Timeline events
+    for item in getattr(target, "timeline", []):
+        ev = item.get("event", "")
+        data = item.get("data", {}) or {}
+        if ev == "tool_skipped":
+            tool = str(data.get("tool", "unknown")).lower()
+            reason = str(data.get("reason", "skipped"))
+            status[tool] = {"status": "skipped", "detail": reason}
+        elif ev in ("tool_failed", "wayback_error"):
+            tool = str(data.get("tool", "wayback" if ev == "wayback_error" else "unknown")).lower()
+            reason = str(data.get("reason", data.get("error", "failed")))
+            status[tool] = {"status": "failed", "detail": reason}
+        elif ev in ("tool_rate_limited", "google_dork_blocked", "github_rate_limited"):
+            tool = str(data.get("tool", "google_dork" if "google" in ev else ("github_recon" if "github" in ev else "unknown"))).lower()
+            reason = str(data.get("reason", "rate limited"))
+            status[tool] = {"status": "rate limited", "detail": reason}
+        elif ev in ("google_dork_success", "google_dork_empty"):
+            if "google_dork" not in status:
+                status["google_dork"] = {"status": "ok", "detail": f"found {data.get('found', 0)}"}
+
+    # 2. Notes
+    for n in getattr(target, "notes", []):
+        n_low = n.lower()
+        if "sherlock" in n_low:
+            if any(w in n_low for w in ("skipped", "not found", "not installed")):
+                status["sherlock"] = {"status": "skipped", "detail": n}
+            elif any(w in n_low for w in ("failed", "timed out", "error")):
+                status["sherlock"] = {"status": "failed", "detail": n}
+        if "maigret" in n_low:
+            if any(w in n_low for w in ("skipped", "not found", "not installed")):
+                status["maigret"] = {"status": "skipped", "detail": n}
+            elif any(w in n_low for w in ("failed", "timed out", "error")):
+                status["maigret"] = {"status": "failed", "detail": n}
+        if "holehe" in n_low:
+            if any(w in n_low for w in ("skipped", "not found", "not installed")):
+                status["holehe"] = {"status": "skipped", "detail": n}
+            elif any(w in n_low for w in ("failed", "error")):
+                status["holehe"] = {"status": "failed", "detail": n}
+        if "breachdirectory" in n_low:
+            if any(w in n_low for w in ("skipped", "no key")):
+                status["breachdirectory"] = {"status": "skipped", "detail": n}
+            elif any(w in n_low for w in ("failed", "error")):
+                status["breachdirectory"] = {"status": "failed", "detail": n}
+        if "xposedornot" in n_low:
+            if "rate limited" in n_low:
+                status["xposedornot"] = {"status": "rate limited", "detail": n}
+            elif any(w in n_low for w in ("failed", "error")):
+                status["xposedornot"] = {"status": "failed", "detail": n}
+            elif "skipped" in n_low:
+                status["xposedornot"] = {"status": "skipped", "detail": n}
+        if "hudson rock" in n_low:
+            if "rate limited" in n_low:
+                status["hudson rock"] = {"status": "rate limited", "detail": n}
+            elif any(w in n_low for w in ("failed", "error")):
+                status["hudson rock"] = {"status": "failed", "detail": n}
+            elif "skipped" in n_low:
+                status["hudson rock"] = {"status": "skipped", "detail": n}
+        if "google search" in n_low and ("rate-limited" in n_low or "blocked" in n_low):
+            status["google_dork"] = {"status": "rate limited", "detail": n}
+
+    # 3. Browser verification (Playwright)
+    try:
+        from modules.headless_probe import is_playwright_available
+        pw_ok = is_playwright_available()
+    except Exception:
+        pw_ok = False
+    if not pw_ok or any("browser verification unavailable" in n.lower() for n in getattr(target, "notes", [])):
+        status["browser_verification"] = {"status": "skipped", "detail": "Playwright unavailable"}
+    else:
+        status["browser_verification"] = {"status": "ok", "detail": "active"}
+
+    # 4. Fill in expected tools that succeeded
+    if target.target_type == "email":
+        expected = ["xposedornot", "hudson rock", "breachdirectory", "holehe"]
+    elif target.target_type in ("username", "name"):
+        expected = ["sherlock", "maigret", "github_recon", "wayback"]
+    else:
+        expected = []
+    for exp in expected:
+        if exp not in status:
+            status[exp] = {"status": "ok", "detail": "completed"}
+
+    return status
+
+
+def format_investigation_summary(target: Target) -> str:
+    """
+    Generates a concise spoken/typed summary of investigation results:
+    distinguishes between complete and incomplete investigations, never presents
+    zero counts as a finding when sources failed or were skipped, limits spoken
+    notes to at most 2, and references the full HTML report.
+    """
+    if not target:
+        return "No investigation results available."
+
+    if target.target_type == "phone":
+        return "Phone investigation is not supported yet."
+
+    if target.target_type in ("file", "unsupported", "unknown"):
+        return target.notes[0] if target.notes else f"Target '{target.primary}' cannot be classified."
+
+    sources_status = get_sources_and_statuses(target)
+    failed_skipped = []
+    for tool_name, info in sources_status.items():
+        if tool_name == "browser_verification":
+            continue
+        if info["status"] in ("skipped", "failed", "rate limited"):
+            failed_skipped.append(f"{tool_name} {info['status']}")
+    failed_str = ", ".join(failed_skipped)
+
+    # Spoken summary notes: at most 2 notes, then "see the report for details"
+    notes_list = []
+    try:
+        from modules.headless_probe import is_playwright_available
+        if not is_playwright_available():
+            notes_list.append("browser verification unavailable")
+    except Exception:
+        pass
+    for n in getattr(target, "notes", []):
+        if any(tool in n.lower() for tool in ("sherlock", "maigret", "holehe", "breachdirectory", "xposedornot", "hudson rock") if any(tool in fs for fs in failed_skipped)):
+            continue
+        if n and n not in notes_list:
+            notes_list.append(n)
+
+    if len(notes_list) > 2:
+        note_str = f" ({'; '.join(notes_list[:2])}; see the report for details)"
+    elif len(notes_list) > 0:
+        note_str = f" ({'; '.join(notes_list)})"
+    else:
+        note_str = ""
+
+    report_str = f" Full report saved to {target.report_path}." if getattr(target, 'report_path', None) else ""
+
+    if target.target_type == "email":
+        breaches = getattr(target, "breaches", [])
+        breach_entities = [e for e in target.entities if e.entity_type == "breach"]
+        total_breaches = len(breaches) + len(breach_entities)
+        if total_breaches == 0:
+            if failed_skipped:
+                return f"Investigation incomplete for {target.primary}: {failed_str}.{note_str}{report_str}"
+            return f"No accounts found for {target.primary}.{note_str}{report_str}"
+        names = [b.name for b in breaches] + [e.value for e in breach_entities]
+        if failed_skipped:
+            return f"Investigation incomplete for email {target.primary} ({failed_str}): {total_breaches} breach records found ({', '.join(names[:3])}).{note_str}{report_str}"
+        return f"OSINT investigation for email {target.primary}: {total_breaches} breach records found ({', '.join(names[:3])}).{note_str}{report_str}"
+
+    # Default to username/entity summary
+    accounts = [e for e in target.entities if e.entity_type in ("account", "username") or e.platform]
+    verified = [e for e in accounts if e.metadata.get("verified") is True]
+    uncertain = [e for e in accounts if e.metadata.get("verified") is None]
+    rejected_cnt = len(target.rejected_entities) + len([e for e in accounts if e.metadata.get("verified") is False])
+
+    top_plats = [e.platform for e in verified if e.platform]
+    top_plat_str = ", ".join(top_plats[:4]) if top_plats else "none"
+
+    if len(verified) == 0:
+        if failed_skipped:
+            return f"Investigation incomplete for {target.primary}: {failed_str}.{note_str}{report_str}"
+        return f"No accounts found for {target.primary}.{note_str}{report_str}"
+
+    if failed_skipped:
+        return (
+            f"Investigation incomplete for {target.primary} ({failed_str}): "
+            f"{len(verified)} verified accounts, {len(uncertain)} uncertain, {rejected_cnt} rejected.{note_str} "
+            f"Top verified: {top_plat_str}.{report_str}"
+        )
+
+    return (
+        f"OSINT investigation for {target.primary}: {len(verified)} verified accounts, "
+        f"{len(uncertain)} uncertain, {rejected_cnt} rejected.{note_str} "
+        f"Top verified: {top_plat_str}.{report_str}"
+    )
+
+
+Orchestrator.format_investigation_summary = staticmethod(format_investigation_summary)

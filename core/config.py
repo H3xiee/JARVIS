@@ -84,6 +84,11 @@ CONFIG_KEY_SPECS: Dict[str, Dict[str, Any]] = {
         "aliases": [],
         "default": "",
     },
+    "AUTO_OPEN_COLD_ROOM": {
+        "yaml_keys": ["auto_open_cold_room"],
+        "aliases": [],
+        "default": True,
+    },
 }
 
 
@@ -207,6 +212,8 @@ def get_config(name: str, default: Any = "") -> Any:
         if ek in os.environ:
             val = os.environ[ek]
             if not is_placeholder(val):
+                if isinstance(default, bool) and isinstance(val, str):
+                    return val.strip().lower() in ("true", "1", "yes", "on")
                 return val
 
     # 2. Check .env file
@@ -215,6 +222,8 @@ def get_config(name: str, default: Any = "") -> Any:
         if ek in env_file_data:
             val = env_file_data[ek]
             if not is_placeholder(val):
+                if isinstance(default, bool) and isinstance(val, str):
+                    return val.strip().lower() in ("true", "1", "yes", "on")
                 return val
 
     # 3. Check config.yaml
@@ -224,8 +233,18 @@ def get_config(name: str, default: Any = "") -> Any:
             val = yaml_data[yk]
             if isinstance(val, str):
                 if not is_placeholder(val):
+                    if isinstance(default, bool):
+                        return val.strip().lower() in ("true", "1", "yes", "on")
                     return val
             elif val is not None:
+                if isinstance(default, bool):
+                    return bool(val)
+                return val
+        if yk == "auto_open_cold_room" and isinstance(yaml_data.get("ui"), dict):
+            if "auto_open_cold_room" in yaml_data["ui"]:
+                val = yaml_data["ui"]["auto_open_cold_room"]
+                if isinstance(default, bool):
+                    return bool(val)
                 return val
 
     # 4. Fallback to default

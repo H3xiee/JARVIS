@@ -618,7 +618,7 @@
     border-top: 2px solid #00F0FF;
     border-radius: 6px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.85);
-    display: flex;
+    display: none;
     flex-direction: column;
     overflow: hidden;
     min-width: 260px;
@@ -1883,6 +1883,7 @@
 
   /* Focused Assistant Dialogue HUD directly above input bar (JARVIS Tactical HUD) */
   #jarvis-chat-container {
+    opacity: 1 !important;
     position: fixed !important;
     bottom: 78px !important;
     left: 50% !important;
@@ -2038,6 +2039,7 @@
   /* Remove the old investigation framing from the default workspace. */
   #case-title, #case-sub, .case-sub-inline, #thinking-indicator { display: none !important; }
   #jarvis-input-bar {
+    opacity: 1 !important;
     z-index: 300 !important;
     width: min(720px, 58vw) !important;
     bottom: 22px !important;
@@ -2148,7 +2150,7 @@
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
-  background: #000005;
+  background: #000000;
 }
 #starfield canvas {
   position: absolute;
@@ -2769,6 +2771,19 @@ body.app-ready {
   border: 1px solid rgba(0, 240, 255, 0.30);
   cursor: pointer;
 }
+.cr-ins-thumb-placeholder {
+  width: 100%;
+  height: 90px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+}
 .cr-pivot-trigger-btn {
   margin-top: 14px;
   width: 100%;
@@ -3176,7 +3191,7 @@ body.app-ready {
   width: 360px;
   max-width: 90vw;
   max-height: calc(100vh - 76px);
-  z-index: 350;
+  z-index: 1350;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -3190,7 +3205,6 @@ body.app-ready {
 #spatial-globe-hud.visible {
   visibility: visible !important;
   opacity: 1 !important;
-  transform: translate3d(0, 0, 0) !important;
   pointer-events: auto !important;
 }
 
@@ -3209,11 +3223,16 @@ body.app-ready {
   background: #0B0E14;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  border: 1px solid rgba(255, 157, 46, 0.35);
-  border-left: 3px solid #FF9D2E;
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  border-left: 3px solid #00F0FF;
   border-radius: 6px;
   padding: 8px 12px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7);
+  cursor: grab;
+  user-select: none;
+}
+.globe-hud-rail-bar:active {
+  cursor: grabbing;
 }
 
 .globe-hud-rail-tag {
@@ -3245,6 +3264,85 @@ body.app-ready {
   background: rgba(255, 157, 46, 0.28);
   border-color: #FF9D2E;
   color: #FFFFFF;
+}
+
+/* Detachable Floating Globe Cards System */
+.globe-hud-card.detached-card {
+  position: fixed !important;
+  z-index: 1450 !important;
+  background: rgba(11, 14, 20, 0.95) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(0, 240, 255, 0.45) !important;
+  border-top: 2px solid #00F0FF !important;
+  border-radius: 6px !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.92), 0 0 16px rgba(0, 240, 255, 0.25) !important;
+  margin: 0 !important;
+  box-sizing: border-box;
+  resize: both;
+  overflow: auto;
+  min-width: 280px;
+  min-height: 120px;
+}
+.globe-hud-card.detached-card .globe-hud-title {
+  cursor: grab !important;
+  user-select: none !important;
+  background: rgba(0, 240, 255, 0.08);
+  border-bottom: 1px solid rgba(0, 240, 255, 0.25);
+  padding: 6px 8px;
+  margin: -8px -8px 8px -8px;
+  border-radius: 4px 4px 0 0;
+}
+.globe-hud-card.detached-card .globe-hud-title:active,
+.globe-hud-card.detached-card.is-card-dragging .globe-hud-title {
+  cursor: grabbing !important;
+}
+.globe-hud-card.detached-card.is-card-dragging {
+  opacity: 0.96;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.98), 0 0 24px rgba(0, 240, 255, 0.6) !important;
+  transition: none !important;
+  user-select: none !important;
+  will-change: left, top;
+}
+.card-detach-btn {
+  background: rgba(0, 240, 255, 0.12);
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  color: #00F0FF;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: var(--mono);
+}
+.card-detach-btn:hover {
+  background: rgba(0, 240, 255, 0.28);
+  border-color: #00F0FF;
+  box-shadow: 0 0 8px rgba(0, 240, 255, 0.45);
+}
+.card-detach-btn.active {
+  background: rgba(255, 157, 46, 0.18);
+  border-color: rgba(255, 157, 46, 0.5);
+  color: #FFB84D;
+}
+.globe-card-placeholder {
+  border: 1px dashed rgba(0, 240, 255, 0.35);
+  background: rgba(0, 240, 255, 0.04);
+  color: #38BDF8;
+  border-radius: 6px;
+  padding: 10px;
+  text-align: center;
+  font-size: 9.5px;
+  font-family: var(--mono);
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.globe-card-placeholder:hover {
+  background: rgba(0, 240, 255, 0.12);
+  border-color: #00F0FF;
+  color: #00F0FF;
 }
 
 /* Floating Collapsed Launcher Tab on Right Edge */
@@ -4068,9 +4166,12 @@ body.chat-panel-collapsed #chat-expand-launcher {
 #ground-media-dock-panel.is-tactical-dragging,
 #globe-inspect-card.is-tactical-dragging,
 #globe-radio-card.is-tactical-dragging {
-  opacity: 0.94;
+  opacity: 0.96;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.95), 0 0 24px rgba(0, 240, 255, 0.6) !important;
   cursor: grabbing !important;
+  transition: none !important;
+  user-select: none !important;
+  will-change: left, top;
 }
 
 .tactical-resize-handle {
@@ -4143,7 +4244,7 @@ select:focus,
   opacity: 0;
   transform: translate3d(200vw, 0, 0);
   transition: opacity 0.18s ease;
-  background: transparent !important;
+  background: #000000 !important;
 }
 
 #cesiumContainer,
@@ -4458,7 +4559,7 @@ body.voiceos-mode #jarvis-hud-notch-wrapper {
 }
 </style>
 </head>
-<body>
+<body class="theme-obsidian chat-panel-collapsed">
 
 <div id="starfield"></div>
 <div id="cesium-spatial-wrapper">
@@ -4514,22 +4615,22 @@ body.voiceos-mode #jarvis-hud-notch-wrapper {
 </div>
 
 <!-- Floating Collapsed Launcher Tab on Right Edge (God's Eye Style) -->
-<div id="globe-hud-launcher" onclick="toggleGlobeHudCollapsed()" title="Expand OSINT Panel">
+<div id="globe-hud-launcher" onclick="toggleGlobeHudCollapsed()" title="Expand Tactical OSINT Panel">
   <span class="globe-launcher-icon">❮</span>
-  <span class="globe-launcher-text">OSINT INTEL</span>
+  <span class="globe-launcher-text">TACTICAL OSINT</span>
   <span class="globe-launcher-dot"></span>
 </div>
 
 <!-- Floating Globe Telemetry HUD (Active when panned to Earth) -->
 <div id="spatial-globe-hud">
-  <div class="globe-hud-rail-bar" id="osint-rail-drag-header" style="cursor:move; user-select:none;">
+  <div class="globe-hud-rail-bar" id="osint-rail-drag-header" style="cursor:grab; user-select:none;">
     <div class="globe-hud-rail-tag" style="display:flex; align-items:center; gap:6px;">
-      <span style="font-size:11px; color:#8A8D91;" title="Drag anywhere">⠿</span>
+      <span class="tactical-win-drag-dots" style="font-size:12px; color:#00F0FF; cursor:grab;" title="Drag to reposition panel">⠿</span>
       <span style="color:#00F0FF;">◉</span>
-      <span>OSINT INTELLIGENCE RAIL</span>
+      <span style="font-weight:800; letter-spacing:0.5px; color:#FFFFFF;">TACTICAL OSINT PANEL</span>
     </div>
     <div style="display:flex; align-items:center; gap:5px;">
-      <button class="globe-hud-btn" style="padding:2px 6px; font-size:8.5px; background:rgba(0,240,255,0.12); border-color:rgba(0,240,255,0.4); color:#00F0FF;" onclick="window.resetTacticalLayout()" title="Reset All Panels to Default Positions">⟲ RESET</button>
+      <button class="globe-hud-btn" style="padding:2px 6px; font-size:8.5px; background:rgba(0,240,255,0.12); border-color:rgba(0,240,255,0.4); color:#00F0FF;" onclick="window.resetTacticalLayout()" title="Reset Panel to Default Dock Position">⟲ RESET</button>
       <button class="globe-hud-collapse-trigger" onclick="toggleGlobeHudCollapsed()" title="Collapse Panel (Unobstructed View)">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
       </button>
@@ -4538,10 +4639,13 @@ body.voiceos-mode #jarvis-hud-notch-wrapper {
 
   <div class="globe-hud-scroll-body">
     <!-- Global Geocoding & Coordinate Jump Bar -->
-    <div class="globe-hud-card">
+    <div class="globe-hud-card" id="globe-card-geocoding" data-card="geocoding">
       <div class="globe-hud-title">
         <span>🌐 GLOBAL GEOCODING & COORDINATES</span>
-        <span style="color:#00F0FF; font-size:10px;">TACTICAL NAV</span>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <button class="card-detach-btn" onclick="window.GlobeCardDetachManager.toggleDetach('geocoding')" title="Detach panel into floating window">⧉</button>
+          <span style="color:#00F0FF; font-size:10px;">TACTICAL NAV</span>
+        </div>
       </div>
       <div class="globe-search-row">
         <input type="text" id="globe-search-input" placeholder="Search City, Airport (JFK/LHR), or Lat,Lon..." onkeydown="if(event.key==='Enter')window.searchAndFlyGlobe(this.value)" />
@@ -4582,13 +4686,16 @@ body.voiceos-mode #jarvis-hud-notch-wrapper {
     </div>
 
     <!-- OSIRIS Ultra-Smooth 60FPS Planetary Engine Toggle -->
-    <div class="globe-hud-card" style="border:1px solid rgba(0,240,255,0.4); background:linear-gradient(135deg, rgba(4,14,26,0.92) 0%, rgba(2,6,14,0.95) 100%);">
+    <div class="globe-hud-card" id="globe-card-engine" data-card="engine" style="border:1px solid rgba(0,240,255,0.4); background:linear-gradient(135deg, rgba(4,14,26,0.92) 0%, rgba(2,6,14,0.95) 100%);">
       <div class="globe-hud-title">
         <span style="display:flex; align-items:center; gap:6px;">
           <span style="color:#00F0FF; font-size:12px;">⚡</span>
           <span>PLANETARY 3D ENGINE</span>
         </span>
-        <span id="globe-engine-badge" style="color:#22C55E; font-size:9.5px; font-weight:800; background:rgba(34,197,94,0.15); padding:1px 6px; border-radius:3px; border:1px solid rgba(34,197,94,0.3);">CESIUM 3D</span>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <button class="card-detach-btn" onclick="window.GlobeCardDetachManager.toggleDetach('engine')" title="Detach panel into floating window">⧉</button>
+          <span id="globe-engine-badge" style="color:#22C55E; font-size:9.5px; font-weight:800; background:rgba(34,197,94,0.15); padding:1px 6px; border-radius:3px; border:1px solid rgba(34,197,94,0.3);">CESIUM 3D</span>
+        </div>
       </div>
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-top:6px;">
         <button class="globe-style-btn active" id="btn-engine-cesium" onclick="window.setGlobeEngine('cesium')" style="padding:6px; font-size:9px; font-weight:700;">🌐 CESIUM 3D</button>
@@ -4598,10 +4705,13 @@ body.voiceos-mode #jarvis-hud-notch-wrapper {
     </div>
 
     <!-- Earth Visual Style Selector -->
-    <div class="globe-hud-card">
+    <div class="globe-hud-card" id="globe-card-style" data-card="style">
       <div class="globe-hud-title">
         <span>🎨 EARTH COLOR CODING</span>
-        <span id="globe-style-label" style="color:#00F0FF; font-size:10px;">SATELLITE</span>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <button class="card-detach-btn" onclick="window.GlobeCardDetachManager.toggleDetach('style')" title="Detach panel into floating window">⧉</button>
+          <span id="globe-style-label" style="color:#00F0FF; font-size:10px;">SATELLITE</span>
+        </div>
       </div>
       <div class="globe-style-grid">
         <button class="globe-style-btn active" id="style-btn-satellite" onclick="window.setEarthVisualStyle('satellite')">🛰 SATELLITE</button>
@@ -4612,10 +4722,13 @@ body.voiceos-mode #jarvis-hud-notch-wrapper {
     </div>
 
     <!-- Sector Coordinates & Orbit View Controls -->
-    <div class="globe-hud-card">
+    <div class="globe-hud-card" id="globe-card-orbit" data-card="orbit">
       <div class="globe-hud-title">
         <span>◎ 3D ORBITAL SECTOR</span>
-        <span style="color:#22C55E; font-size:10px;">LOCK</span>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <button class="card-detach-btn" onclick="window.GlobeCardDetachManager.toggleDetach('orbit')" title="Detach panel into floating window">⧉</button>
+          <span style="color:#22C55E; font-size:10px;">LOCK</span>
+        </div>
       </div>
       <div class="globe-hud-coords" id="globe-coords-label">
         SECTOR: <span style="color:#00F0FF;">GLOBAL AIRSPACE</span> • ORBITAL OVERVIEW
@@ -4632,10 +4745,13 @@ body.voiceos-mode #jarvis-hud-notch-wrapper {
     </div>
 
     <!-- Live Sector Weather Intelligence -->
-    <div class="globe-hud-card">
+    <div class="globe-hud-card" id="globe-card-weather" data-card="weather">
       <div class="globe-hud-title">
         <span>🌦 SECTOR WEATHER INTEL</span>
-        <span id="weather-condition-tag" style="color:#38BDF8; font-size:10px;">LOADING...</span>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <button class="card-detach-btn" onclick="window.GlobeCardDetachManager.toggleDetach('weather')" title="Detach panel into floating window">⧉</button>
+          <span id="weather-condition-tag" style="color:#38BDF8; font-size:10px;">LOADING...</span>
+        </div>
       </div>
       <div style="font-size:10.5px; color:#A1A1AA; font-family:var(--mono);" id="weather-location-name">
         KOTAGIRI, TAMIL NADU
@@ -4669,10 +4785,11 @@ body.voiceos-mode #jarvis-hud-notch-wrapper {
     </div>
 
     <!-- Tactical Feeds & Layer Toggles -->
-    <div class="globe-hud-card">
+    <div class="globe-hud-card" id="globe-card-layers" data-card="layers">
       <div class="globe-hud-title">
         <span>🛰 TACTICAL LAYERS</span>
         <div style="display:flex; align-items:center; gap:6px;">
+          <button class="card-detach-btn" onclick="window.GlobeCardDetachManager.toggleDetach('layers')" title="Detach panel into floating window">⧉</button>
           <button onclick="window.clearAllTacticalLayers()" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.4); color:#FCA5A5; font-size:8.5px; font-weight:700; padding:2px 6px; border-radius:3px; cursor:pointer;" title="Turn off all data layers">CLEAR ALL</button>
           <span style="color:#22C55E; font-size:10px;">KEYLESS OSINT</span>
         </div>
@@ -4961,7 +5078,7 @@ body.voiceos-mode #jarvis-hud-notch-wrapper {
 <div id="tactical-windows-container">
 
   <!-- 1. AIRSPACE RADAR WINDOW -->
-  <div class="tactical-window-panel" id="tactical-win-airspace" data-panel="airspace">
+  <div class="tactical-window-panel" id="tactical-win-airspace" data-panel="airspace" style="display:none;">
     <div class="win-resize-handle win-resize-t" data-dir="t"></div>
     <div class="win-resize-handle win-resize-r" data-dir="r"></div>
     <div class="win-resize-handle win-resize-b" data-dir="b"></div>
@@ -5021,7 +5138,7 @@ body.voiceos-mode #jarvis-hud-notch-wrapper {
   </div>
 
   <!-- 2. MARITIME VESSELS WINDOW -->
-  <div class="tactical-window-panel" id="tactical-win-maritime" data-panel="maritime">
+  <div class="tactical-window-panel" id="tactical-win-maritime" data-panel="maritime" style="display:none;">
     <div class="win-resize-handle win-resize-t" data-dir="t"></div>
     <div class="win-resize-handle win-resize-r" data-dir="r"></div>
     <div class="win-resize-handle win-resize-b" data-dir="b"></div>
@@ -5063,7 +5180,7 @@ body.voiceos-mode #jarvis-hud-notch-wrapper {
   </div>
 
   <!-- 3. ORBITAL SATELLITES WINDOW -->
-  <div class="tactical-window-panel" id="tactical-win-satellites" data-panel="satellites">
+  <div class="tactical-window-panel" id="tactical-win-satellites" data-panel="satellites" style="display:none;">
     <div class="win-resize-handle win-resize-t" data-dir="t"></div>
     <div class="win-resize-handle win-resize-r" data-dir="r"></div>
     <div class="win-resize-handle win-resize-b" data-dir="b"></div>
@@ -5121,7 +5238,7 @@ body.voiceos-mode #jarvis-hud-notch-wrapper {
   </div>
 
   <!-- 4. GROUND INTEL (OSINT) WINDOW -->
-  <div class="tactical-window-panel" id="tactical-win-ground-intel" data-panel="ground_intel">
+  <div class="tactical-window-panel" id="tactical-win-ground-intel" data-panel="ground_intel" style="display:none;">
     <div class="win-resize-handle win-resize-t" data-dir="t"></div>
     <div class="win-resize-handle win-resize-r" data-dir="r"></div>
     <div class="win-resize-handle win-resize-b" data-dir="b"></div>
@@ -5167,7 +5284,7 @@ body.voiceos-mode #jarvis-hud-notch-wrapper {
   </div>
 
   <!-- 5. SECTOR WEATHER INTEL WINDOW -->
-  <div class="tactical-window-panel" id="tactical-win-weather" data-panel="weather">
+  <div class="tactical-window-panel" id="tactical-win-weather" data-panel="weather" style="display:none;">
     <div class="win-resize-handle win-resize-t" data-dir="t"></div>
     <div class="win-resize-handle win-resize-r" data-dir="r"></div>
     <div class="win-resize-handle win-resize-b" data-dir="b"></div>
@@ -5232,7 +5349,7 @@ body.voiceos-mode #jarvis-hud-notch-wrapper {
   </div>
 
   <!-- 6. SYSTEM & TELEMETRY LOGS WINDOW -->
-  <div class="tactical-window-panel" id="tactical-win-system-logs" data-panel="system_logs">
+  <div class="tactical-window-panel" id="tactical-win-system-logs" data-panel="system_logs" style="display:none;">
     <div class="win-resize-handle win-resize-t" data-dir="t"></div>
     <div class="win-resize-handle win-resize-r" data-dir="r"></div>
     <div class="win-resize-handle win-resize-b" data-dir="b"></div>
@@ -5791,6 +5908,10 @@ body.voiceos-mode #jarvis-hud-notch-wrapper {
           <div class="cr-ins-section" id="cr-ins-screen-section" style="display:none;">
             <div class="cr-sec-title">VERIFIED SCREENSHOT</div>
             <img id="cr-ins-screenshot" src="" class="cr-ins-thumb" onclick="openEvidenceOverlay()" />
+            <div id="cr-ins-screenshot-placeholder" class="cr-ins-thumb-placeholder" style="display:none;">
+              <span style="font-size:16px; opacity:0.6;">📷</span>
+              <span style="font-size:10px; color:#A1A1AA; font-family:var(--mono); letter-spacing:0.04em;">No screenshot captured</span>
+            </div>
           </div>
           <div class="cr-inspector-actions" id="cr-ins-actions-container">
             <button class="cr-pivot-trigger-btn" id="cr-ins-pivot-btn" onclick="window.pivotFromColdRoom()">
@@ -5866,9 +5987,9 @@ body.voiceos-mode #jarvis-hud-notch-wrapper {
         </svg>
         EXPORT REPORT
       </button>
-      <!-- 🗔 PANELS DOCK MENU (PART 3) -->
-      <div class="top-bar-panels-dropdown-wrapper" style="position:relative;">
-        <button id="topbar-panels-btn" class="hud-color-btn" onclick="window.TacticalWindowManager.togglePanelsMenu()" title="Tactical OSINT Floating Windows" style="display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:6px; font-family:'Inter', sans-serif; font-size:11px; font-weight:700; border:1px solid rgba(0,240,255,0.4); background:rgba(0,240,255,0.1); color:#00F0FF; cursor:pointer;">
+      <!-- 🗔 PANELS DOCK MENU (MOVED TO SCREEN 3 - HIDDEN ON SCREEN 2) -->
+      <div class="top-bar-panels-dropdown-wrapper" style="position:relative; display:none !important;">
+        <button id="topbar-panels-btn" class="hud-color-btn" onclick="window.TacticalWindowManager.togglePanelsMenu()" title="Tactical OSINT Floating Windows" style="display:none !important; align-items:center; gap:5px; padding:4px 10px; border-radius:6px; font-family:'Inter', sans-serif; font-size:11px; font-weight:700; border:1px solid rgba(0,240,255,0.4); background:rgba(0,240,255,0.1); color:#00F0FF; cursor:pointer;">
           <span style="font-size:12px;">🗔</span> <span>PANELS</span> <span id="topbar-panels-caret" style="font-size:8px;">▾</span>
         </button>
         <div id="topbar-panels-menu" style="display:none; position:absolute; top:calc(100% + 6px); right:0; width:230px; background:#0B0E14; border:1px solid rgba(0,240,255,0.4); border-radius:6px; box-shadow:0 12px 40px rgba(0,0,0,0.95); z-index:99999; padding:8px; font-family:var(--mono); font-size:11px;">
@@ -8046,7 +8167,9 @@ function handleSend() {
       if (targetMatch) ColdRoom.setTarget(targetMatch);
       ColdRoom.setStatus('INITIALIZING INVESTIGATION...', true);
     }
-    if (window.glideToSpatial) {
+    const autoOpen = window.jarvisConfig?.auto_open_cold_room !== false;
+    if (autoOpen && window.glideToSpatial) {
+      window._hasAutoNavigatedForCurrentInvestigation = true;
       window.glideToSpatial(-950);
     }
   } else if (lowerText.includes('cross verify') || lowerText.includes('cross-verify') || lowerText.includes('correlate case') || lowerText.includes('cross check case')) {
@@ -10657,6 +10780,9 @@ window.refreshThinkingWatchdog = function() {
 
 function setHudState(state) {
   jarvisHudState = state;
+  if (state === 'speaking' || state === 'listening' || state === 'followup_listening' || state === 'thinking') {
+    if (typeof startJarvisAudioLoop === 'function') startJarvisAudioLoop();
+  }
   if (_thinkingWatchdogTimer) {
     clearTimeout(_thinkingWatchdogTimer);
     _thinkingWatchdogTimer = null;
@@ -10727,7 +10853,36 @@ function setHudState(state) {
   }
 }
 
+let _audioLoopRunning = false;
+let _audioLoopAnimId = null;
+
+function startJarvisAudioLoop() {
+  if (_audioLoopRunning) return;
+  _audioLoopRunning = true;
+  _audioLoopAnimId = requestAnimationFrame(updateJarvisAudioLoop);
+}
+
+function stopJarvisAudioLoop() {
+  _audioLoopRunning = false;
+  if (_audioLoopAnimId) {
+    cancelAnimationFrame(_audioLoopAnimId);
+    _audioLoopAnimId = null;
+  }
+}
+
 function updateJarvisAudioLoop() {
+  const isVoiceActive = (typeof isMicListening !== 'undefined' && isMicListening) ||
+                        (typeof isNativeMicActive !== 'undefined' && isNativeMicActive) ||
+                        (typeof jarvisHudState !== 'undefined' && (jarvisHudState === 'listening' || jarvisHudState === 'speaking' || jarvisHudState === 'followup_listening')) ||
+                        (typeof activePlayingChunkCount === 'number' && activePlayingChunkCount > 0);
+  const isVisualizerActive = typeof SpatialNav === 'undefined' || Math.abs(SpatialNav.currentX) <= 475;
+
+  if (document.hidden || (!isVoiceActive && !isVisualizerActive)) {
+    _audioLoopRunning = false;
+    _audioLoopAnimId = null;
+    return;
+  }
+
   // Real audio frequency reactive energy for TTS speech & microphone input
   if (jarvisHudState === 'speaking' && window.ttsAnalyser && window.ttsDataArray) {
     window.ttsAnalyser.getByteFrequencyData(window.ttsDataArray);
@@ -10759,7 +10914,8 @@ function updateJarvisAudioLoop() {
   if (window.JarvisKnowledgeGraph && typeof window.JarvisKnowledgeGraph.updateAudioEnergy === 'function') {
     window.JarvisKnowledgeGraph.updateAudioEnergy(jarvisAudioEnergy);
   }
-  requestAnimationFrame(updateJarvisAudioLoop);
+  _audioLoopRunning = true;
+  _audioLoopAnimId = requestAnimationFrame(updateJarvisAudioLoop);
 }
 
 /* ---------- Real-Time EKG Heartbeat Waveform Line Canvas Renderer ---------- */
@@ -10799,18 +10955,10 @@ function getEkgHeightAtPhase(phase, state, audioEnergy) {
 }
 
 function drawEkgWaveform() {
-  // Pause Screen 1 EKG canvas rendering when on Screen 2
-  if (typeof SpatialNav !== 'undefined' && SpatialNav.currentX > 800) {
-    requestAnimationFrame(drawEkgWaveform);
-    return;
-  }
-
+  if (document.hidden) return;
   if (!ekgCanvas) ekgCanvas = document.getElementById('ekg-canvas');
   if (ekgCanvas && !ekgCtx) ekgCtx = ekgCanvas.getContext('2d');
-  if (!ekgCanvas || !ekgCtx) {
-    requestAnimationFrame(drawEkgWaveform);
-    return;
-  }
+  if (!ekgCanvas || !ekgCtx) return;
 
   if (ekgBuffer.length === 0) {
     ekgBuffer = new Array(EKG_POINTS).fill(0);
@@ -12342,6 +12490,8 @@ const TaskSurfaceManager = {
       contentHtml = this.renderFlightIntelSurface(task);
     } else if (task.type === 'weather_intel' || task.type === 'weather' || queryStr.includes('weather telemetry')) {
       contentHtml = this.renderWeatherIntelSurface(task);
+    } else if (task.type === 'osint_investigate' || task.type === 'investigation' || (task.title && task.title.startsWith('OSINT:'))) {
+      contentHtml = this.renderOsintSurface(task);
     } else {
       contentHtml = this.renderGenericSurface(task);
     }
@@ -12913,6 +13063,85 @@ const TaskSurfaceManager = {
     `;
   },
 
+  renderOsintSurface(task) {
+    const isRunning = task.state === 'RUNNING' || task.state === 'CREATED' || task.state === 'STARTED';
+    const isDone = task.state === 'COMPLETED';
+    const isFailed = task.state === 'FAILED';
+    const pct = Math.max(0, Math.min(100, typeof task.progress_pct === 'number' ? task.progress_pct : (isDone ? 100 : 0)));
+    const targetName = (task.data && task.data.target) || (task.title ? task.title.replace(/^OSINT:\s*/i, '') : 'Target');
+    const statusMsg = task.progress_msg || (isDone ? 'Investigation complete' : 'Processing...');
+    const findings = task.findings || [];
+    const logs = (task.data && Array.isArray(task.data.logs)) ? task.data.logs : [];
+
+    let statusHeader = '';
+    if (isRunning) {
+      statusHeader = `
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; flex-shrink:0;">
+          <div style="display:flex; align-items:center; gap:6px; font-size:11px; color:#00F0FF; font-weight:700;">
+            <span class="thinking-spinner" style="width:10px; height:10px; border-width:1.5px; border-top-color:#00F0FF;"></span>
+            <span>OSINT RECONNAISSANCE ACTIVE</span>
+          </div>
+          <span style="font-size:10px; color:#00F0FF; font-family:var(--mono);">${pct}% COMPLETE</span>
+        </div>
+      `;
+    } else if (isDone) {
+      statusHeader = `
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; flex-shrink:0;">
+          <div style="display:flex; align-items:center; gap:6px; font-size:11px; color:#22C55E; font-weight:700;">
+            <span>✓</span>
+            <span>INVESTIGATION COMPLETE — ${findings.length} FINDINGS</span>
+          </div>
+          <span style="font-size:10px; color:#22C55E; font-family:var(--mono); font-weight:700;">100%</span>
+        </div>
+      `;
+    } else {
+      statusHeader = `
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; flex-shrink:0;">
+          <div style="display:flex; align-items:center; gap:6px; font-size:11px; color:#EF4444; font-weight:700;">
+            <span>✕</span>
+            <span>INVESTIGATION FAILED</span>
+          </div>
+          <span style="font-size:10px; color:#EF4444; font-family:var(--mono);">ABORTED</span>
+        </div>
+      `;
+    }
+
+    const logItems = logs.length > 0 ? logs.map((l) => `
+      <div style="padding:3px 0; border-bottom:1px solid rgba(255,255,255,0.03); color:#A1A1AA; font-size:10.5px; font-family:var(--mono); display:flex; gap:6px;">
+        <span style="color:#00F0FF; opacity:0.6;">›</span>
+        <span>${this.escapeHtml(l)}</span>
+      </div>
+    `).join('') : `
+      <div style="padding:3px 0; color:#71717A; font-size:10.5px; font-family:var(--mono);">› ${this.escapeHtml(statusMsg)}</div>
+    `;
+
+    return `
+      ${statusHeader}
+
+      <!-- PROGRESS BAR -->
+      <div style="width:100%; height:4px; background:rgba(255,255,255,0.08); border-radius:2px; margin-bottom:10px; overflow:hidden; flex-shrink:0;">
+        <div style="width:${pct}%; height:100%; background:linear-gradient(90deg, #00F0FF, #38BDF8); transition:width 0.3s ease;"></div>
+      </div>
+
+      <!-- TARGET & STATUS BOX -->
+      <div style="background:#08090A; border:1px solid rgba(0,240,255,0.2); border-left:3px solid #00F0FF; border-radius:5px; padding:8px 10px; margin-bottom:10px; flex-shrink:0;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-weight:700; color:#F1F5F9; font-size:11.5px; font-family:var(--mono);">TARGET: ${this.escapeHtml(targetName)}</span>
+          <span style="font-size:9.5px; color:#38BDF8; font-family:var(--mono); background:rgba(0,240,255,0.1); padding:2px 6px; border-radius:3px;">${findings.length} IOCs DISCOVERED</span>
+        </div>
+        <div style="font-size:10.5px; color:#38BDF8; margin-top:3px; font-family:var(--mono);">${this.escapeHtml(statusMsg)}</div>
+      </div>
+
+      <!-- STEP EXECUTION LOG -->
+      <div style="flex:1; min-height:0; display:flex; flex-direction:column; background:#040506; border:1px solid rgba(255,255,255,0.06); border-radius:5px; padding:8px 10px; overflow-y:auto;">
+        <div style="font-size:9.5px; color:#71717A; font-weight:700; margin-bottom:6px; letter-spacing:0.04em;">EXECUTION TELEMETRY & LOGS</div>
+        <div style="flex:1; overflow-y:auto;">
+          ${logItems}
+        </div>
+      </div>
+    `;
+  },
+
   renderGenericSurface(task) {
     const summaryText = task.summary || task.progress_msg || 'Task active...';
     return `
@@ -13016,30 +13245,71 @@ function toggleSidebarExpanded() {
 
 /* ---------- Spatial System Telemetry ---------- */
 let spatialTelemetryTimer = null;
-async function updateSpatialSystemTelemetry() {
-  try {
-    if (!api() || !api().get_system_telemetry) return;
-    const m = await api().get_system_telemetry();
-    if (!m) return;
-    const set = (id, value, level) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.textContent = value == null ? '—' : String(value);
-      const metric = el.closest('.spatial-metric');
-      if (metric) metric.classList.remove('warn', 'hot');
-      if (metric && level) metric.classList.add(level);
-    };
-    const cpu = Number(m.cpu_percent);
-    const ram = Number(m.ram_percent);
-    const gpu = Number(m.gpu_percent);
-    set('telemetry-cpu', Number.isFinite(cpu) ? `${cpu.toFixed(0)}%` : '—', cpu >= 90 ? 'hot' : cpu >= 75 ? 'warn' : '');
-    set('telemetry-ram', Number.isFinite(ram) ? `${ram.toFixed(0)}%` : '—', ram >= 92 ? 'hot' : ram >= 80 ? 'warn' : '');
-    set('telemetry-gpu', Number.isFinite(gpu) ? `${gpu.toFixed(0)}%` : '—', gpu >= 95 ? 'hot' : gpu >= 80 ? 'warn' : '');
-    const net = Number(m.net_mbps);
-    set('telemetry-net', Number.isFinite(net) ? `${net.toFixed(net >= 10 ? 0 : 1)} MB/s` : '—', net >= 100 ? 'warn' : '');
-  } catch (_) {}
+let _spatialTelemetryFetching = false;
+
+function isSpatialTelemetryVisible() {
+  if (document.hidden) return false;
+  if (typeof document.hasFocus === 'function' && !document.hasFocus()) return false;
+  if (typeof SpatialNav !== 'undefined' && Math.abs(SpatialNav.currentX) > 475) return false;
+  return true;
 }
+
+function stopSpatialTelemetryPolling() {
+  if (spatialTelemetryTimer) {
+    clearTimeout(spatialTelemetryTimer);
+    spatialTelemetryTimer = null;
+  }
+}
+
+function scheduleNextSpatialTelemetry(delayMs = 5000) {
+  stopSpatialTelemetryPolling();
+  if (!isSpatialTelemetryVisible()) return;
+  spatialTelemetryTimer = setTimeout(() => {
+    updateSpatialSystemTelemetry();
+  }, delayMs);
+}
+
+async function updateSpatialSystemTelemetry() {
+  if (!isSpatialTelemetryVisible()) {
+    stopSpatialTelemetryPolling();
+    return;
+  }
+  if (_spatialTelemetryFetching) return;
+  _spatialTelemetryFetching = true;
+
+  try {
+    if (api() && api().get_system_telemetry) {
+      const m = await api().get_system_telemetry();
+      if (m) {
+        const set = (id, value, level) => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.textContent = value == null ? '—' : String(value);
+          const metric = el.closest('.spatial-metric');
+          if (metric) metric.classList.remove('warn', 'hot');
+          if (metric && level) metric.classList.add(level);
+        };
+        const cpu = Number(m.cpu_percent);
+        const ram = Number(m.ram_percent);
+        const gpu = Number(m.gpu_percent);
+        set('telemetry-cpu', Number.isFinite(cpu) ? `${cpu.toFixed(0)}%` : '—', cpu >= 90 ? 'hot' : cpu >= 75 ? 'warn' : '');
+        set('telemetry-ram', Number.isFinite(ram) ? `${ram.toFixed(0)}%` : '—', ram >= 92 ? 'hot' : ram >= 80 ? 'warn' : '');
+        set('telemetry-gpu', Number.isFinite(gpu) ? `${gpu.toFixed(0)}%` : '—', gpu >= 95 ? 'hot' : gpu >= 80 ? 'warn' : '');
+        const net = Number(m.net_mbps);
+        set('telemetry-net', Number.isFinite(net) ? `${net.toFixed(net >= 10 ? 0 : 1)} MB/s` : '—', net >= 100 ? 'warn' : '');
+      }
+    }
+  } catch (_) {}
+  finally {
+    _spatialTelemetryFetching = false;
+    scheduleNextSpatialTelemetry(5000);
+  }
+}
+
 function updateGalaxyMeta() {
+  if (document.hidden) return;
+  if (typeof document.hasFocus === 'function' && !document.hasFocus()) return;
+  if (typeof SpatialNav !== 'undefined' && Math.abs(SpatialNav.currentX) > 475) return;
   const nodes = document.getElementById('galaxy-node-count');
   const links = document.getElementById('galaxy-link-count');
   if (window.JarvisKnowledgeGraph && window.JarvisKnowledgeGraph.data) {
@@ -13047,6 +13317,22 @@ function updateGalaxyMeta() {
     if (links) links.textContent = String((window.JarvisKnowledgeGraph.data.links || []).length);
   }
 }
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    stopSpatialTelemetryPolling();
+  } else if (isSpatialTelemetryVisible()) {
+    updateSpatialSystemTelemetry();
+  }
+});
+window.addEventListener('blur', () => {
+  stopSpatialTelemetryPolling();
+});
+window.addEventListener('focus', () => {
+  if (isSpatialTelemetryVisible()) {
+    updateSpatialSystemTelemetry();
+  }
+});
 
 document.addEventListener('DOMContentLoaded', () => {
   TaskSurfaceManager.init();
@@ -13061,9 +13347,10 @@ document.addEventListener('DOMContentLoaded', () => {
       applyConfigToForm(parsed);
     }
   } catch(e) {}
-  updateSpatialSystemTelemetry();
-  spatialTelemetryTimer = setInterval(updateSpatialSystemTelemetry, 2000);
-  setInterval(updateGalaxyMeta, 500);
+  if (isSpatialTelemetryVisible()) {
+    updateSpatialSystemTelemetry();
+  }
+  setInterval(updateGalaxyMeta, 1000);
 
   // Prevent clicks inside #sidebar from bubbling up to close it
   const sidebarEl = document.getElementById('sidebar');
@@ -13617,8 +13904,12 @@ window.jarvis = window.joe = {
         $('#session-status').textContent = 'running';
         const isColdRoomInvestigation = data && !data.is_tactical && (data.is_investigation === true || (data.target && !data.is_telemetry));
         if (isColdRoomInvestigation) {
-          if (window.glideToSpatial && SpatialNav.currentX > -300) {
-            window.glideToSpatial(-950);
+          const autoOpen = (typeof data.auto_open_cold_room === 'boolean' ? data.auto_open_cold_room : (window.jarvisConfig?.auto_open_cold_room !== false));
+          if (autoOpen && !window._hasAutoNavigatedForCurrentInvestigation) {
+            window._hasAutoNavigatedForCurrentInvestigation = true;
+            if (window.glideToSpatial) {
+              window.glideToSpatial(-950);
+            }
           }
           if (window.ColdRoom) {
             ColdRoom.setStatus(data.message || 'Scanning...', true);
@@ -13643,6 +13934,7 @@ window.jarvis = window.joe = {
         break;
 
       case 'investigation_done':
+        window._hasAutoNavigatedForCurrentInvestigation = false;
         showThinking(false);
         setHudState('idle');
         $('#session-status').textContent = 'idle';
@@ -14864,15 +15156,33 @@ const ColdRoomGraph = {
   },
 
   startLoop() {
+    if (this._running) return;
+    this._running = true;
     const step = () => {
-      this.animId = requestAnimationFrame(step);
-      if (typeof SpatialNav !== 'undefined' && SpatialNav.currentX > -100) {
+      if (!this._running || document.hidden || (typeof SpatialNav !== 'undefined' && SpatialNav.currentX > -400)) {
+        this._running = false;
+        this.animId = null;
         return;
       }
       this.updatePhysics();
       this.render();
+      this.animId = requestAnimationFrame(step);
     };
-    step();
+    this.animId = requestAnimationFrame(step);
+  },
+
+  pause() {
+    this._running = false;
+    if (this.animId) {
+      cancelAnimationFrame(this.animId);
+      this.animId = null;
+    }
+  },
+
+  resume() {
+    if (typeof SpatialNav === 'undefined' || SpatialNav.currentX <= -400) {
+      this.startLoop();
+    }
   },
 
   updatePhysics() {
@@ -15417,13 +15727,21 @@ const ColdRoom = {
       }
     }
 
-    const screen = entity.screenshot || entity.screenshot_path || entity.image;
-    if (screenSec && screenImg) {
-      if (screen) {
-        screenSec.style.display = 'block';
+    const screen = entity.screenshot_url || entity.screenshot || entity.screenshot_path || entity.image;
+    const screenPh = document.getElementById('cr-ins-screenshot-placeholder');
+    if (screenSec) {
+      screenSec.style.display = 'block';
+      if (screen && screenImg) {
+        screenImg.style.display = 'block';
+        if (screenPh) screenPh.style.display = 'none';
+        screenImg.onerror = function() {
+          screenImg.style.display = 'none';
+          if (screenPh) screenPh.style.display = 'flex';
+        };
         screenImg.src = screen;
       } else {
-        screenSec.style.display = 'none';
+        if (screenImg) screenImg.style.display = 'none';
+        if (screenPh) screenPh.style.display = 'flex';
       }
     }
 
@@ -15782,6 +16100,22 @@ const SpatialNav = {
   isGlobeInteracting: false,
   lastGlobeX: 0,
   lastGlobeY: 0,
+  _navLoopId: null,
+
+  _startNavLoop() {
+    if (this._navLoopId) return;
+    const tick = () => {
+      const isMoving = Math.abs(this.targetX - this.currentX) > 0.04 || Math.abs(this.targetZoom - this.currentZoom) > 0.04 || this.isDragging;
+      if (isMoving) {
+        this.update(0.016);
+        this._navLoopId = requestAnimationFrame(tick);
+      } else {
+        this.update(0.016);
+        this._navLoopId = null;
+      }
+    };
+    this._navLoopId = requestAnimationFrame(tick);
+  },
 
   init() {
     if (this._initialized) {
@@ -15801,6 +16135,7 @@ const SpatialNav = {
     window.addEventListener('touchstart', (e) => {
       if (e.touches && e.touches.length >= 2) {
         touchStartX = e.touches[0].clientX;
+        this._startNavLoop();
       }
     }, { passive: true });
     window.addEventListener('touchmove', (e) => {
@@ -15808,12 +16143,14 @@ const SpatialNav = {
         const dx = e.touches[0].clientX - touchStartX;
         this.targetX = Math.max(-950, Math.min(950, this.targetX - dx * 1.6));
         touchStartX = e.touches[0].clientX;
+        this._startNavLoop();
       }
     }, { passive: true });
     window.addEventListener('touchend', (e) => {
       if (this.targetX < -475) this.targetX = -950;
       else if (this.targetX > 475) this.targetX = 950;
       else this.targetX = 0;
+      this._startNavLoop();
     }, { passive: true });
 
     // Keyboard screen switching (ArrowLeft/Right, Numpad 1/2/3/4/6)
@@ -15842,6 +16179,18 @@ const SpatialNav = {
 
   glideTo(x) {
     this.targetX = Math.max(-950, Math.min(950, x));
+    // Instant 0ms dock item highlight feedback on click
+    const btnCold = document.getElementById('dock-btn-coldroom');
+    const btnHud = document.getElementById('dock-btn-hud');
+    const btnGlobe = document.getElementById('dock-btn-globe');
+    if (btnCold) btnCold.classList.toggle('active', this.targetX < -475);
+    if (btnHud) btnHud.classList.toggle('active', this.targetX >= -475 && this.targetX <= 475);
+    if (btnGlobe) btnGlobe.classList.toggle('active', this.targetX > 475);
+
+    if (this.targetX > 475 && window.cesiumViewer && !window.cesiumViewer.isDestroyed()) {
+      window.cesiumViewer.resize();
+    }
+    this._startNavLoop();
   },
 
   onTrackClick(e) {
@@ -15881,8 +16230,8 @@ const SpatialNav = {
     const isEdgeStrip = isEdgeZone || isEdgePill;
 
     // Screen-switching mouse drag belongs ONLY to thin edge strips.
-    // Drags on KG canvas, Cesium globe, Cold Room graph/panels, chat panel, composer, or HUD belong to those elements.
-    if (!isEdgeStrip || (e.target.closest && e.target.closest('input, textarea, select, option, .globe-hud-btn, .top-bar-menu-btn, .cr-action-btn'))) {
+    // Drags on KG canvas, Cesium globe, Cold Room graph/panels, chat panel, composer, HUD, or Screen 3 Tactical Panel belong to those elements.
+    if (!isEdgeStrip || (e.target.closest && e.target.closest('input, textarea, select, option, .globe-hud-btn, .card-detach-btn, .top-bar-menu-btn, .cr-action-btn, #spatial-globe-hud, .globe-hud-rail-bar, .globe-hud-card, .detached-card, .tactical-window-panel'))) {
       this.isPointerDown = false;
       this.isDragging = false;
       return;
@@ -15897,6 +16246,7 @@ const SpatialNav = {
     this.lastPointerX = e.clientX;
     this.pointerVelocity = 0;
     this.lastPointerTime = performance.now();
+    this._startNavLoop();
   },
 
   onPointerMove(e) {
@@ -15911,6 +16261,7 @@ const SpatialNav = {
 
     const sensitivity = (950 / window.innerWidth) * 1.25;
     this.targetX = Math.max(-950, Math.min(950, this.dragStartSpatialX - dx * sensitivity));
+    this._startNavLoop();
   },
 
   onPointerUp() {
@@ -15945,6 +16296,7 @@ const SpatialNav = {
         else this.targetX = 0;
       }
     }
+    this._startNavLoop();
   },
 
   onWheel(e) {
@@ -15952,11 +16304,13 @@ const SpatialNav = {
     if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 2) {
       e.preventDefault();
       this.targetX = Math.max(-950, Math.min(950, this.targetX + e.deltaX * 1.5));
+      this._startNavLoop();
       if (this.wheelTimeout) clearTimeout(this.wheelTimeout);
       this.wheelTimeout = setTimeout(() => {
         if (this.targetX < -475) this.targetX = -950;
         else if (this.targetX > 475) this.targetX = 950;
         else this.targetX = 0;
+        this._startNavLoop();
       }, 140);
       return;
     }
@@ -15970,6 +16324,7 @@ const SpatialNav = {
     if (this.currentX > 500 && !e.target.closest('#thread, .jarvis-window-body, #spatial-globe-hud')) {
       e.preventDefault();
       this.targetZoom = Math.max(340, Math.min(850, this.targetZoom + e.deltaY * 0.5));
+      this._startNavLoop();
     }
   },
 
@@ -15984,10 +16339,16 @@ const SpatialNav = {
     }
     if (!isMoving && !this.isDragging) return;
 
-    const lerpRate = this.isDragging ? 0.22 : 0.085;
+    const lerpRate = 0.22;
     this.currentX += (this.targetX - this.currentX) * lerpRate;
     this.currentZoom += (this.targetZoom - this.currentZoom) * 0.08;
-    if (Math.abs(this.targetX - this.currentX) < 0.04) this.currentX = this.targetX;
+    if (Math.abs(this.targetX - this.currentX) < 0.04) {
+      const arrived = this.currentX !== this.targetX;
+      this.currentX = this.targetX;
+      if (arrived && this.targetX > 475 && window.cesiumViewer && !window.cesiumViewer.isDestroyed()) {
+        window.cesiumViewer.resize();
+      }
+    }
     if (Math.abs(this.targetZoom - this.currentZoom) < 0.04) this.currentZoom = this.targetZoom;
 
     this._applySpatialProperties();
@@ -16042,9 +16403,6 @@ const SpatialNav = {
         const tx = ((1 - globeProgress) * 450).toFixed(1);
         cesiumWrap.style.transform = `translate3d(${tx}px, 0, 0)`;
         cesiumWrap.style.pointerEvents = this.currentX > 500 ? 'auto' : 'none';
-        if (window.cesiumViewer && !window.cesiumViewer.isDestroyed() && !window.cesiumViewer.useDefaultRenderLoop) {
-          window.cesiumViewer.resize();
-        }
       } else {
         cesiumWrap.style.visibility = 'hidden';
         cesiumWrap.style.opacity = '0';
@@ -16098,6 +16456,49 @@ const SpatialNav = {
       }
     }
 
+    // Starfield WebGL Lifecycle Governor: Active ONLY on Tactical HUD (absRatio < 0.45)
+    if (absRatio < 0.45) {
+      if (window._sfDisposalTimer) {
+        clearTimeout(window._sfDisposalTimer);
+        window._sfDisposalTimer = null;
+      }
+      if (typeof sfRenderer === 'undefined' || !sfRenderer) {
+        if (typeof sfInit === 'function') sfInit();
+      }
+      const sfCanvas = document.querySelector('#starfield canvas');
+      if (sfCanvas) sfCanvas.style.display = 'block';
+      if (typeof sfStart === 'function' && !document.hidden) {
+        sfStart();
+      }
+    } else {
+      if (typeof sfStop === 'function') sfStop();
+      const sfCanvas = document.querySelector('#starfield canvas');
+      if (sfCanvas) sfCanvas.style.display = 'none';
+      if (!window._sfDisposalTimer && typeof sfRenderer !== 'undefined' && sfRenderer) {
+        window._sfDisposalTimer = setTimeout(() => {
+          window._sfDisposalTimer = null;
+          const curRatio = typeof SpatialNav !== 'undefined' ? Math.abs(SpatialNav.currentX / 950) : 1;
+          if (curRatio >= 0.45 && typeof disposeStarfield === 'function') {
+            disposeStarfield();
+          }
+        }, 15000);
+      }
+    }
+
+    // Audio loop check: resume if returning to HUD
+    if (absRatio < 0.45) {
+      if (typeof startJarvisAudioLoop === 'function') startJarvisAudioLoop();
+    }
+
+    // Cold Room Graph Lifecycle Governor: Active ONLY on Screen 1 (currentX <= -400)
+    if (window.ColdRoomGraph) {
+      if (this.currentX <= -400) {
+        window.ColdRoomGraph.resume();
+      } else {
+        window.ColdRoomGraph.pause();
+      }
+    }
+
     // Cesium RAM & GPU Governor: Maintain safe render loop when visible
     if (window.cesiumViewer && !window.cesiumViewer.isDestroyed()) {
       if (!window.cesiumViewer.useDefaultRenderLoop && !document.hidden) {
@@ -16146,6 +16547,13 @@ const SpatialNav = {
       }
     }
 
+    // Screen 3 Detached Cards Governor: strictly visible only on Screen 3
+    const isScreen3 = this.currentX > 350;
+    const detachedCards = document.querySelectorAll('.globe-hud-card.detached-card');
+    detachedCards.forEach(c => {
+      c.style.display = isScreen3 ? 'block' : 'none';
+    });
+
     // Standalone Voice Status Widget: fully visible and interactive on Screen 2 as well as all screens
     const voiceDock = document.getElementById('gods-eye-bottom-dock');
     if (voiceDock) {
@@ -16181,13 +16589,26 @@ window.toggleGlobeHudCollapsed = function() {
 };
 
 // Collapsible Chat & Input Box Panel controller (Unobstructed Globe View)
-let isChatPanelCollapsed = false;
+// STRICT: The chat / Intelligence Feed panel must start COLLAPSED on every launch,
+// regardless of any saved state. Never restore a saved open state at launch.
+let isChatPanelCollapsed = true;
+try {
+  localStorage.setItem('jarvis_chat_panel_collapsed', 'true');
+} catch (_) {}
+document.body.classList.add('chat-panel-collapsed');
+
+window.isChatPanelCollapsed = true;
+
 window.toggleChatPanel = function(forceState) {
   if (typeof forceState === 'boolean') {
     isChatPanelCollapsed = forceState;
   } else {
     isChatPanelCollapsed = !isChatPanelCollapsed;
   }
+  window.isChatPanelCollapsed = isChatPanelCollapsed;
+  try {
+    localStorage.setItem('jarvis_chat_panel_collapsed', String(isChatPanelCollapsed));
+  } catch(e) {}
   if (isChatPanelCollapsed) {
     document.body.classList.add('chat-panel-collapsed');
   } else {
@@ -16225,8 +16646,19 @@ function initDraggableChatLauncher() {
   }
 
   let isDragging = false;
+  let wasDragging = false;
   let startX = 0, startY = 0;
   let initialLeft = 0, initialTop = 0;
+
+  launcher.addEventListener('click', (e) => {
+    if (wasDragging) {
+      wasDragging = false;
+      return;
+    }
+    if (typeof window.toggleChatPanel === 'function') {
+      window.toggleChatPanel();
+    }
+  });
 
   launcher.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
@@ -16263,6 +16695,8 @@ function initDraggableChatLauncher() {
       window.removeEventListener('pointercancel', onPointerUp);
 
       if (isDragging) {
+        wasDragging = true;
+        setTimeout(() => { wasDragging = false; }, 100);
         launcher.classList.remove('is-dragging');
         const finalRect = launcher.getBoundingClientRect();
         try {
@@ -16271,10 +16705,6 @@ function initDraggableChatLauncher() {
             top: Math.round(finalRect.top)
           }));
         } catch(e) {}
-      } else {
-        if (typeof window.toggleChatPanel === 'function') {
-          window.toggleChatPanel();
-        }
       }
     };
 
@@ -16329,6 +16759,12 @@ window.glideToSpatial = function(x) {
   if (x < 450 && window.JarvisPatrol && window.JarvisPatrol.active) {
     window.JarvisPatrol.stop();
   }
+  const btnCold = document.getElementById('dock-btn-coldroom');
+  const btnHud = document.getElementById('dock-btn-hud');
+  const btnGlobe = document.getElementById('dock-btn-globe');
+  if (btnCold) btnCold.classList.toggle('active', x < -475);
+  if (btnHud) btnHud.classList.toggle('active', x >= -475 && x <= 475);
+  if (btnGlobe) btnGlobe.classList.toggle('active', x > 475);
   SpatialNav.glideTo(x);
 };
 
@@ -16582,6 +17018,9 @@ window.resetViewToHome = function() {
 window.resetGlobeOrbitView = window.resetViewToHome;
 
 window.glideToGlobe = function(lat, lon, label) {
+  if (window.glideToSpatial) {
+    window.glideToSpatial(950);
+  }
   if (Number.isFinite(lat) && Number.isFinite(lon)) {
     window.focusGlobeCoordinates(lat, lon, label || 'Sector');
   } else {
@@ -17361,12 +17800,79 @@ function createSharpStarTexture() {
   return tex;
 }
 
+let _sfDisposalTimer = null;
+
+function disposeStarfield() {
+  if (_sfDisposalTimer) {
+    clearTimeout(_sfDisposalTimer);
+    _sfDisposalTimer = null;
+  }
+  if (!sfRenderer) return;
+
+  sfStop();
+
+  if (sfScene) {
+    sfScene.traverse((obj) => {
+      if (obj.geometry) {
+        try { obj.geometry.dispose(); } catch (_) {}
+      }
+      if (obj.material) {
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach(mat => {
+            if (mat.map && typeof mat.map.dispose === 'function') {
+              try { mat.map.dispose(); } catch (_) {}
+            }
+            try { mat.dispose(); } catch (_) {}
+          });
+        } else {
+          if (obj.material.map && typeof obj.material.map.dispose === 'function') {
+            try { obj.material.map.dispose(); } catch (_) {}
+          }
+          try { obj.material.dispose(); } catch (_) {}
+        }
+      }
+    });
+  }
+
+  try {
+    sfRenderer.dispose();
+    if (typeof sfRenderer.forceContextLoss === 'function') {
+      sfRenderer.forceContextLoss();
+    }
+  } catch (e) {
+    console.warn('[Starfield] Error during renderer disposal:', e);
+  }
+
+  if (sfRenderer.domElement && sfRenderer.domElement.parentNode) {
+    sfRenderer.domElement.parentNode.removeChild(sfRenderer.domElement);
+  }
+
+  sfRenderer = null;
+  sfScene = null;
+  sfCamera = null;
+  sfGroup = null;
+  sfClock = null;
+  window._globeCosmosGroup = null;
+  window._coldRoomCosmosGroup = null;
+  globeGroup = null;
+  earthMesh = null;
+  atmosMesh = null;
+  beaconPin = null;
+  beaconRing = null;
+
+  console.log('[Starfield] Disposed GPU resources');
+}
+
 function sfInit() {
   if (typeof THREE === 'undefined') {
     console.error('[Starfield] Three.js is not available');
     return;
   }
   if (sfRenderer) return;
+  if (_sfDisposalTimer) {
+    clearTimeout(_sfDisposalTimer);
+    _sfDisposalTimer = null;
+  }
 
   sfScene = new THREE.Scene();
   sfClock = new THREE.Clock();
@@ -17532,10 +18038,14 @@ function sfInit() {
   // Initialize Spatial Pointer Controller
   SpatialNav.init();
 
+  window.removeEventListener('resize', sfOnResize);
   window.addEventListener('resize', sfOnResize);
 
-  console.log('[Starfield] Initialized 3D Spatial Canvas: Rotating Galaxy & Hanging Earth Globe');
-  sfStart();
+  console.log('[Starfield] Initialized 3D Spatial Canvas: Rotating Galaxy');
+  const absRatio = typeof SpatialNav !== 'undefined' ? Math.abs(SpatialNav.currentX / 950) : 0;
+  if (absRatio < 0.45 && !document.hidden) {
+    sfStart();
+  }
 }
 
 function sfOnResize() {
@@ -17549,14 +18059,18 @@ let sfAnimId = null;
 let sfRunning = false;
 
 function sfStart() {
+  const absRatio = typeof SpatialNav !== 'undefined' ? Math.abs(SpatialNav.currentX / 950) : 0;
+  if (absRatio >= 0.45) return;
   if (sfRunning) return;
   sfRunning = true;
+  window.sfRunning = true;
   if (typeof sfClock !== 'undefined' && sfClock) sfClock.getDelta();
   sfAnimId = requestAnimationFrame(sfAnimate);
 }
 
 function sfStop() {
   sfRunning = false;
+  window.sfRunning = false;
   if (sfAnimId) {
     cancelAnimationFrame(sfAnimId);
     sfAnimId = null;
@@ -17577,11 +18091,13 @@ document.addEventListener('visibilitychange', () => {
       window.cesiumViewer.useDefaultRenderLoop = false;
     }
   } else {
-    // 1. Resume Three.js starfield loop
-    if (typeof sfStart === 'function') sfStart();
+    // 1. Resume Three.js starfield loop ONLY on Tactical HUD
+    const absRatio = typeof SpatialNav !== 'undefined' ? Math.abs(SpatialNav.currentX / 950) : 0;
+    if (absRatio < 0.45 && typeof sfStart === 'function') {
+      sfStart();
+    }
     // 2. Resume 3D Knowledge Graph if active on Screen 2
     if (window.JarvisKnowledgeGraph && typeof window.JarvisKnowledgeGraph.resume === 'function') {
-      const absRatio = Math.abs(typeof SpatialNav !== 'undefined' ? (SpatialNav.currentX / (SpatialNav.screenWidth || 1920)) : 0);
       if (absRatio < 0.45) {
         window.JarvisKnowledgeGraph.resume();
       }
@@ -17603,15 +18119,16 @@ window.addEventListener('focus', () => {
 });
 
 function sfAnimate() {
-  if (!sfRunning && !document.hidden) sfRunning = true;
-  if (document.hidden || !sfRunning) {
+  const absRatio = typeof SpatialNav !== 'undefined' ? Math.abs(SpatialNav.currentX / 950) : 0;
+  if (document.hidden || !sfRunning || absRatio >= 0.45) {
     sfRunning = false;
+    window.sfRunning = false;
     sfAnimId = null;
     return;
   }
   sfAnimId = requestAnimationFrame(sfAnimate);
 
-  const delta = sfClock.getDelta();
+  const delta = sfClock ? sfClock.getDelta() : 0.016;
   // Calm ambient celestial drift (~0.016 rad/s: ~8.75x slower than previous 0.14 rad/s)
   const speed = 0.016;
   const isKGTracking = !!(window.JarvisKnowledgeGraph && (window.JarvisKnowledgeGraph.focusedNode || window.JarvisKnowledgeGraph.isNodeDragging));
@@ -17651,17 +18168,18 @@ function sfAnimate() {
   // Update spatial camera & HTML HUD parallax
   SpatialNav.update(delta);
 
-  // Render deep space Three.js starfield and celestial cosmos across Screen 1 and Screen 3;
-  // When centered on Screen 2 (Tactical HUD), the unified J.A.R.V.I.S. Core canvas is active and opaque,
-  // so suspend sfRenderer to ensure strictly ONE central visualization canvas is active on the GPU.
-  if (sfRenderer && sfScene && sfCamera) {
-    const isCenteredOnHUD = window.JarvisKnowledgeGraph && !window.JarvisKnowledgeGraph.isPaused && Math.abs(SpatialNav.currentX) < 150;
-    const isViewingGlobe = typeof SpatialNav !== 'undefined' && SpatialNav.currentX > 500;
-    if (!isCenteredOnHUD && !isViewingGlobe) {
-      sfRenderer.render(sfScene, sfCamera);
-    }
+  // Render deep space Three.js starfield strictly on Tactical HUD (Screen 2: absRatio < 0.45)
+  if (sfRenderer && sfScene && sfCamera && absRatio < 0.45) {
+    sfRenderer.render(sfScene, sfCamera);
   }
 }
+
+window.disposeStarfield = disposeStarfield;
+window.sfInit = sfInit;
+window.sfStart = sfStart;
+window.sfStop = sfStop;
+window.startJarvisAudioLoop = startJarvisAudioLoop;
+window.stopJarvisAudioLoop = stopJarvisAudioLoop;
 
 // God's Eye Cesium 3D World Terrain Engine
 let cesiumViewer = null;
@@ -18867,6 +19385,21 @@ window.updateSectorWeather = async function(lat, lon, label) {
     if (pressEl) pressEl.textContent = `${pressure} hPa`;
     const precipEl = document.getElementById('weather-val-precip');
     if (precipEl) precipEl.textContent = `${precip} mm`;
+
+    const winCondEl = document.getElementById('win-weather-condition');
+    if (winCondEl) winCondEl.textContent = condText.toUpperCase();
+    const winTempEl = document.getElementById('win-weather-val-temp');
+    if (winTempEl) winTempEl.textContent = `${temp}°C`;
+    const winFeelsEl = document.getElementById('win-weather-val-feels');
+    if (winFeelsEl) winFeelsEl.textContent = `${feels}°C`;
+    const winHumEl = document.getElementById('win-weather-val-humidity');
+    if (winHumEl) winHumEl.textContent = `${humidity}%`;
+    const winWindEl = document.getElementById('win-weather-val-wind');
+    if (winWindEl) winWindEl.textContent = `${wind} km/h`;
+    const winPressEl = document.getElementById('win-weather-val-pressure');
+    if (winPressEl) winPressEl.textContent = `${pressure} hPa`;
+    const winPrecipEl = document.getElementById('win-weather-val-precip');
+    if (winPrecipEl) winPrecipEl.textContent = `${precip} mm`;
   } catch (err) {
     console.warn('[WeatherHUD] Telemetry fetch error:', err);
     const condEl = document.getElementById('weather-condition-tag');
@@ -18921,14 +19454,19 @@ window.updateSectorWeather = async function(lat, lon, label) {
     window.rearmRenderGovernor();
   }
 
-  if (layerName === 'flights' && _flightsDataSource) {
-    _flightsDataSource.show = _tacticalLayers.flights;
-    if (_tacticalLayers.flights && window._fetchLiveFlights) window._fetchLiveFlights();
-    else if (!_tacticalLayers.flights) {
+  if (layerName === 'flights') {
+    if (_flightsDataSource) _flightsDataSource.show = _tacticalLayers.flights;
+    if (_tacticalLayers.flights) {
+      if (window._fetchLiveFlights) window._fetchLiveFlights();
+      if (window.TacticalWindowManager) window.TacticalWindowManager.openWindow('airspace');
+    } else {
       const el = document.getElementById('radar-contact-count'); if (el) el.textContent = '0';
     }
-  } else if (layerName === 'vessels' && _vesselsDataSource) {
-    _vesselsDataSource.show = _tacticalLayers.vessels;
+  } else if (layerName === 'vessels') {
+    if (_vesselsDataSource) _vesselsDataSource.show = _tacticalLayers.vessels;
+    if (_tacticalLayers.vessels && window.TacticalWindowManager) {
+      window.TacticalWindowManager.openWindow('maritime');
+    }
     const el = document.getElementById('vessel-contact-count');
     if (el) el.textContent = _tacticalLayers.vessels ? (typeof MARITIME_VESSELS !== 'undefined' ? MARITIME_VESSELS.length : '14') : '0';
   } else if (layerName === 'traffic') {
@@ -18957,6 +19495,7 @@ window.updateSectorWeather = async function(lat, lon, label) {
     if (_tacticalLayers.space) {
       if (typeof window.fetchOsirisSatellites === 'function') window.fetchOsirisSatellites();
       if (typeof window.startOsirisSatellitePolling === 'function') window.startOsirisSatellitePolling();
+      if (window.TacticalWindowManager) window.TacticalWindowManager.openWindow('satellites');
     } else {
       if (typeof window.clearFocusedSatelliteTrack === 'function') window.clearFocusedSatelliteTrack();
     }
@@ -18972,18 +19511,20 @@ window.updateSectorWeather = async function(lat, lon, label) {
   } else if (layerName === 'weather') {
     if (_tacticalLayers.weather) {
       _loadWeatherRadarLayer();
+      if (window.TacticalWindowManager) window.TacticalWindowManager.openWindow('weather');
     } else if (_weatherImageryLayer && window.cesiumViewer && !window.cesiumViewer.isDestroyed()) {
       window.cesiumViewer.imageryLayers.remove(_weatherImageryLayer);
       _weatherImageryLayer = null;
     }
-  } else if (layerName === 'groundMedia' && _groundMediaDataSource) {
-    _groundMediaDataSource.show = _tacticalLayers.groundMedia;
+  } else if (layerName === 'groundMedia') {
+    if (_groundMediaDataSource) _groundMediaDataSource.show = _tacticalLayers.groundMedia;
     const el = document.getElementById('groundmedia-contact-count');
     if (_tacticalLayers.groundMedia) {
-      if (typeof window.loadGroundMedia === 'function' && _groundMediaDataSource.entities.values.length === 0) {
+      if (typeof window.loadGroundMedia === 'function' && (!(_groundMediaDataSource && _groundMediaDataSource.entities) || _groundMediaDataSource.entities.values.length === 0)) {
         window.loadGroundMedia();
       }
-      if (el) el.textContent = String(_groundMediaDataSource.entities.values.length || '0');
+      if (el && _groundMediaDataSource) el.textContent = String(_groundMediaDataSource.entities.values.length || '0');
+      if (window.TacticalWindowManager) window.TacticalWindowManager.openWindow('ground_intel');
     } else {
       if (el) el.textContent = '0';
       if (typeof window.closeGroundMediaCard === 'function') {
@@ -19534,6 +20075,27 @@ window.TacticalPanelManager = {
       let startX = 0, startY = 0;
       let startLeft = 0, startTop = 0;
 
+      const onPointerMove = (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+
+        const clamped = this.clamp(el, startLeft + dx, startTop + dy);
+        el.style.left = Math.round(clamped.left) + 'px';
+        el.style.top = Math.round(clamped.top) + 'px';
+      };
+
+      const onEndDrag = (e) => {
+        if (!isDragging) return;
+        isDragging = false;
+        el.classList.remove('is-tactical-dragging');
+        try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', onEndDrag);
+        window.removeEventListener('pointercancel', onEndDrag);
+        this.saveLayout();
+      };
+
       handle.addEventListener('pointerdown', (e) => {
         if (e.button !== 0) return;
         if (e.target.closest('button, select, input, a, textarea')) return;
@@ -19564,29 +20126,11 @@ window.TacticalPanelManager = {
 
         el.classList.add('is-tactical-dragging');
         try { handle.setPointerCapture(e.pointerId); } catch (_) {}
+        window.addEventListener('pointermove', onPointerMove, { passive: true });
+        window.addEventListener('pointerup', onEndDrag);
+        window.addEventListener('pointercancel', onEndDrag);
         e.preventDefault();
       });
-
-      handle.addEventListener('pointermove', (e) => {
-        if (!isDragging) return;
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-
-        const clamped = this.clamp(el, startLeft + dx, startTop + dy);
-        el.style.left = Math.round(clamped.left) + 'px';
-        el.style.top = Math.round(clamped.top) + 'px';
-      });
-
-      const onEndDrag = (e) => {
-        if (!isDragging) return;
-        isDragging = false;
-        el.classList.remove('is-tactical-dragging');
-        try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
-        this.saveLayout();
-      };
-
-      handle.addEventListener('pointerup', onEndDrag);
-      handle.addEventListener('pointercancel', onEndDrag);
     }
 
     // Resize handling
@@ -19664,10 +20208,283 @@ window.TacticalPanelManager = {
   }
 };
 
+// ============================================================================
+// Screen 3 Tactical OSINT Panel: Detachable, Resizable & Draggable Cards System
+// Allows any card in #spatial-globe-hud to be detached into an independent
+// floating window, dragged anywhere on Screen 3, resized freely, and re-docked.
+// ============================================================================
+const GLOBE_CARD_STORAGE_KEY = 'jarvis_globe_detached_cards';
+
+const GLOBE_CARDS_CONFIG = {
+  geocoding: { id: 'globe-card-geocoding', title: 'GLOBAL GEOCODING & COORDINATES', defaultLeft: 24, defaultTop: 70, defaultWidth: 340 },
+  engine: { id: 'globe-card-engine', title: 'PLANETARY 3D ENGINE', defaultLeft: 24, defaultTop: 240, defaultWidth: 320 },
+  style: { id: 'globe-card-style', title: 'EARTH COLOR CODING', defaultLeft: 24, defaultTop: 360, defaultWidth: 320 },
+  orbit: { id: 'globe-card-orbit', title: '3D ORBITAL SECTOR', defaultLeft: 380, defaultTop: 70, defaultWidth: 360 },
+  weather: { id: 'globe-card-weather', title: 'SECTOR WEATHER INTEL', defaultLeft: 380, defaultTop: 250, defaultWidth: 340 },
+  layers: { id: 'globe-card-layers', title: 'TACTICAL LAYERS', defaultLeft: 380, defaultTop: 450, defaultWidth: 360 }
+};
+
+window.GlobeCardDetachManager = {
+  detached: {},
+
+  init() {
+    Object.keys(GLOBE_CARDS_CONFIG).forEach(key => {
+      const cfg = GLOBE_CARDS_CONFIG[key];
+      const card = document.getElementById(cfg.id);
+      if (card) {
+        this._setupDrag(card, key);
+      }
+    });
+    this.loadState();
+  },
+
+  _setupDrag(card, key) {
+    if (card._dragInit) return;
+    card._dragInit = true;
+
+    const titleEl = card.querySelector('.globe-hud-title');
+    if (!titleEl) return;
+
+    card.addEventListener('pointerdown', () => {
+      if (card.classList.contains('detached-card')) {
+        TacticalPanelManager.bringToFront(card);
+      }
+    }, { passive: true });
+
+    let isDragging = false;
+    let startX = 0, startY = 0;
+    let startLeft = 0, startTop = 0;
+
+    const onPointerMove = (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+
+      const cardW = card.offsetWidth || 300;
+      const cardH = card.offsetHeight || 150;
+      const maxLeft = Math.max(8, window.innerWidth - cardW - 8);
+      const maxTop = Math.max(8, window.innerHeight - cardH - 8);
+
+      const nextLeft = Math.max(8, Math.min(startLeft + dx, maxLeft));
+      const nextTop = Math.max(8, Math.min(startTop + dy, maxTop));
+
+      card.style.left = Math.round(nextLeft) + 'px';
+      card.style.top = Math.round(nextTop) + 'px';
+    };
+
+    const onPointerUp = () => {
+      if (!isDragging) return;
+      isDragging = false;
+      card.classList.remove('is-card-dragging');
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+      this.saveState();
+    };
+
+    titleEl.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      if (!card.classList.contains('detached-card')) return;
+      if (e.target.closest('button, input, select, a, textarea')) return;
+
+      TacticalPanelManager.bringToFront(card);
+      isDragging = true;
+      card.classList.add('is-card-dragging');
+      startX = e.clientX;
+      startY = e.clientY;
+
+      const rect = card.getBoundingClientRect();
+      startLeft = rect.left;
+      startTop = rect.top;
+
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+      window.addEventListener('pointercancel', onPointerUp);
+    });
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => {
+        if (card.classList.contains('detached-card') && !isDragging) {
+          this.saveState();
+        }
+      });
+      ro.observe(card);
+    }
+  },
+
+  detach(key) {
+    const cfg = GLOBE_CARDS_CONFIG[key];
+    if (!cfg) return;
+    const card = document.getElementById(cfg.id);
+    if (!card || card.classList.contains('detached-card')) return;
+
+    let placeholder = document.getElementById('placeholder-' + key);
+    if (!placeholder) {
+      placeholder = document.createElement('div');
+      placeholder.className = 'globe-card-placeholder';
+      placeholder.id = 'placeholder-' + key;
+      placeholder.innerHTML = `<span>⤶ ${cfg.title} (CLICK TO DOCK)</span>`;
+      placeholder.setAttribute('data-card', key);
+      placeholder.onclick = () => window.GlobeCardDetachManager.dock(key);
+      card.parentNode.insertBefore(placeholder, card);
+    }
+
+    document.body.appendChild(card);
+    card.classList.add('detached-card');
+
+    const btn = card.querySelector('.card-detach-btn');
+    if (btn) {
+      btn.innerHTML = '⤶ DOCK';
+      btn.classList.add('active');
+      btn.title = 'Dock back into Tactical Panel';
+    }
+
+    const saved = this.detached[key] || {};
+    const left = typeof saved.left === 'number' ? saved.left : cfg.defaultLeft;
+    const top = typeof saved.top === 'number' ? saved.top : cfg.defaultTop;
+    const width = typeof saved.width === 'number' ? saved.width : cfg.defaultWidth;
+    const height = typeof saved.height === 'number' ? saved.height : null;
+
+    card.style.left = Math.round(left) + 'px';
+    card.style.top = Math.round(top) + 'px';
+    card.style.width = Math.round(width) + 'px';
+    if (height) card.style.height = Math.round(height) + 'px';
+    else card.style.height = '';
+
+    TacticalPanelManager.bringToFront(card);
+    this._setupDrag(card, key);
+
+    this.detached[key] = {
+      left: parseInt(card.style.left, 10),
+      top: parseInt(card.style.top, 10),
+      width: parseInt(card.style.width, 10),
+      height: height ? parseInt(card.style.height, 10) : null
+    };
+
+    const isScreen3 = typeof SpatialNav !== 'undefined' ? SpatialNav.currentX > 350 : true;
+    card.style.display = isScreen3 ? 'block' : 'none';
+
+    this.saveState();
+  },
+
+  dock(key) {
+    const cfg = GLOBE_CARDS_CONFIG[key];
+    if (!cfg) return;
+    const card = document.getElementById(cfg.id);
+    if (!card || !card.classList.contains('detached-card')) return;
+
+    const placeholder = document.getElementById('placeholder-' + key);
+    if (placeholder && placeholder.parentNode) {
+      placeholder.parentNode.insertBefore(card, placeholder);
+      placeholder.remove();
+    } else {
+      const scrollBody = document.querySelector('#spatial-globe-hud .globe-hud-scroll-body');
+      if (scrollBody) scrollBody.appendChild(card);
+    }
+
+    card.classList.remove('detached-card');
+    card.classList.remove('is-card-dragging');
+    card.style.position = '';
+    card.style.left = '';
+    card.style.top = '';
+    card.style.width = '';
+    card.style.height = '';
+    card.style.zIndex = '';
+    card.style.display = '';
+
+    const btn = card.querySelector('.card-detach-btn');
+    if (btn) {
+      btn.innerHTML = '⧉';
+      btn.classList.remove('active');
+      btn.title = 'Detach panel into floating window';
+    }
+
+    delete this.detached[key];
+    this.saveState();
+  },
+
+  toggleDetach(key) {
+    const cfg = GLOBE_CARDS_CONFIG[key];
+    if (!cfg) return;
+    const card = document.getElementById(cfg.id);
+    if (!card) return;
+    if (card.classList.contains('detached-card')) {
+      this.dock(key);
+    } else {
+      this.detach(key);
+    }
+  },
+
+  dockAll() {
+    Object.keys(GLOBE_CARDS_CONFIG).forEach(key => {
+      this.dock(key);
+    });
+    this.detached = {};
+    try {
+      localStorage.removeItem(GLOBE_CARD_STORAGE_KEY);
+    } catch (_) {}
+  },
+
+  saveState() {
+    try {
+      const state = {};
+      Object.keys(GLOBE_CARDS_CONFIG).forEach(key => {
+        const cfg = GLOBE_CARDS_CONFIG[key];
+        const card = document.getElementById(cfg.id);
+        if (card && card.classList.contains('detached-card')) {
+          const rect = card.getBoundingClientRect();
+          state[key] = {
+            left: parseInt(card.style.left, 10) || Math.round(rect.left),
+            top: parseInt(card.style.top, 10) || Math.round(rect.top),
+            width: parseInt(card.style.width, 10) || Math.round(rect.width),
+            height: parseInt(card.style.height, 10) || Math.round(rect.height),
+            zIndex: parseInt(card.style.zIndex, 10) || null
+          };
+        }
+      });
+      localStorage.setItem(GLOBE_CARD_STORAGE_KEY, JSON.stringify(state));
+    } catch (e) {
+      console.warn('[GlobeCardDetachManager] Save error:', e);
+    }
+  },
+
+  loadState() {
+    try {
+      const raw = localStorage.getItem(GLOBE_CARD_STORAGE_KEY);
+      if (!raw) return;
+      const state = JSON.parse(raw);
+      if (!state || typeof state !== 'object') return;
+
+      Object.entries(state).forEach(([key, data]) => {
+        if (!GLOBE_CARDS_CONFIG[key]) return;
+        this.detached[key] = data;
+        this.detach(key);
+        const card = document.getElementById(GLOBE_CARDS_CONFIG[key].id);
+        if (card && data) {
+          if (typeof data.left === 'number') card.style.left = data.left + 'px';
+          if (typeof data.top === 'number') card.style.top = data.top + 'px';
+          if (typeof data.width === 'number') card.style.width = data.width + 'px';
+          if (typeof data.height === 'number') card.style.height = data.height + 'px';
+          if (data.zIndex) card.style.zIndex = data.zIndex;
+        }
+      });
+    } catch (e) {
+      console.warn('[GlobeCardDetachManager] Load error:', e);
+    }
+  }
+};
+
+window.toggleDetachCard = function(key) {
+  window.GlobeCardDetachManager.toggleDetach(key);
+};
+
 window.resetTacticalLayout = function() {
   window.TacticalPanelManager.resetLayout();
   if (window.TacticalWindowManager) {
     window.TacticalWindowManager.resetLayout();
+  }
+  if (window.GlobeCardDetachManager) {
+    window.GlobeCardDetachManager.dockAll();
   }
 };
 
@@ -19676,17 +20493,36 @@ function makeDraggable(element, handle) {
   window.TacticalPanelManager.bringToFront(element);
 }
 
-// Auto-initialize TacticalPanelManager on page load
+// Auto-initialize TacticalPanelManager & GlobeCardDetachManager on page load
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => window.TacticalPanelManager.init());
+  document.addEventListener('DOMContentLoaded', () => {
+    window.TacticalPanelManager.init();
+    if (window.GlobeCardDetachManager) window.GlobeCardDetachManager.init();
+  });
 } else {
   window.TacticalPanelManager.init();
+  if (window.GlobeCardDetachManager) window.GlobeCardDetachManager.init();
 }
 
 window.addEventListener('resize', () => {
   window.TacticalPanelManager.clampAll();
   if (window.TacticalWindowManager) {
     window.TacticalWindowManager.clampAll();
+  }
+  if (window.GlobeCardDetachManager) {
+    Object.keys(GLOBE_CARDS_CONFIG).forEach(key => {
+      const card = document.getElementById(GLOBE_CARDS_CONFIG[key].id);
+      if (card && card.classList.contains('detached-card')) {
+        const cardW = card.offsetWidth || 300;
+        const cardH = card.offsetHeight || 150;
+        const maxLeft = Math.max(8, window.innerWidth - cardW - 8);
+        const maxTop = Math.max(8, window.innerHeight - cardH - 8);
+        let curLeft = parseInt(card.style.left, 10) || 24;
+        let curTop = parseInt(card.style.top, 10) || 70;
+        card.style.left = Math.max(8, Math.min(curLeft, maxLeft)) + 'px';
+        card.style.top = Math.max(8, Math.min(curTop, maxTop)) + 'px';
+      }
+    });
   }
 });
 
@@ -19702,7 +20538,7 @@ const TACTICAL_WINDOWS_CONFIG = {
     title: 'AIRSPACE RADAR (ADS-B)',
     shortTitle: 'AIRSPACE',
     icon: '✈',
-    defaultOpen: true,
+    defaultOpen: false,
     defaultPos: () => ({ left: Math.max(10, window.innerWidth - 380), top: 54, width: 360, height: 350 })
   },
   maritime: {
@@ -19710,7 +20546,7 @@ const TACTICAL_WINDOWS_CONFIG = {
     title: 'MARITIME VESSELS (AIS)',
     shortTitle: 'MARITIME',
     icon: '🚢',
-    defaultOpen: true,
+    defaultOpen: false,
     defaultPos: () => ({ left: Math.max(10, window.innerWidth - 380), top: 418, width: 360, height: 300 })
   },
   satellites: {
@@ -19718,7 +20554,7 @@ const TACTICAL_WINDOWS_CONFIG = {
     title: 'ORBITAL SATELLITES (ISS)',
     shortTitle: 'SATELLITES',
     icon: '🛰️',
-    defaultOpen: true,
+    defaultOpen: false,
     defaultPos: () => ({ left: 370, top: 54, width: 350, height: 280 })
   },
   ground_intel: {
@@ -19726,7 +20562,7 @@ const TACTICAL_WINDOWS_CONFIG = {
     title: 'GROUND INTEL (OSINT)',
     shortTitle: 'GROUND INTEL',
     icon: '📍',
-    defaultOpen: true,
+    defaultOpen: false,
     defaultPos: () => ({ left: Math.max(10, window.innerWidth - 750), top: 54, width: 350, height: 380 })
   },
   weather: {
@@ -19734,7 +20570,7 @@ const TACTICAL_WINDOWS_CONFIG = {
     title: 'SECTOR WEATHER INTEL',
     shortTitle: 'WEATHER',
     icon: '🌦️',
-    defaultOpen: true,
+    defaultOpen: false,
     defaultPos: () => ({ left: 20, top: 54, width: 330, height: 280 })
   },
   system_logs: {
@@ -19742,7 +20578,7 @@ const TACTICAL_WINDOWS_CONFIG = {
     title: 'SYSTEM & TELEMETRY LOGS',
     shortTitle: 'SYSTEM LOGS',
     icon: '⚡',
-    defaultOpen: true,
+    defaultOpen: false,
     defaultPos: () => ({ left: 20, top: 348, width: 330, height: 340 })
   },
   radio: {
@@ -19874,6 +20710,9 @@ window.TacticalWindowManager = {
     this.renderMinimizedDock();
     this.renderTopbarMenu();
     this.saveState();
+    if (panelKey === 'diagnostics' && typeof window.stopDiagnosticsPolling === 'function') {
+      window.stopDiagnosticsPolling();
+    }
   },
 
   restoreWindow(panelKey) {
@@ -19898,6 +20737,18 @@ window.TacticalWindowManager = {
     if (panelKey === 'diagnostics' && typeof window.updateDiagnosticsTelemetry === 'function') {
       window.updateDiagnosticsTelemetry(true);
     }
+    if (panelKey === 'cyber_news' && typeof window.fetchCyberNews === 'function') {
+      window.fetchCyberNews();
+    }
+    if (panelKey === 'radio' && typeof window.fetchRadioStations === 'function') {
+      window.fetchRadioStations();
+    }
+    if (panelKey === 'target_inspect' || panelKey === 'inspect') {
+      const b = document.getElementById('inspect-card-body');
+      if (b && !b.textContent.trim()) {
+        b.innerHTML = '<div style="color:#94A3B8; text-align:center; padding:12px; font-size:10px;">No target contact selected.<br><span style="color:#64748B; font-size:9px;">Click an aircraft, vessel, satellite, or ground marker on the map to inspect telemetry.</span></div>';
+      }
+    }
   },
 
   closeWindow(panelKey) {
@@ -19913,6 +20764,9 @@ window.TacticalWindowManager = {
     this.renderMinimizedDock();
     this.renderTopbarMenu();
     this.saveState();
+    if (panelKey === 'diagnostics' && typeof window.stopDiagnosticsPolling === 'function') {
+      window.stopDiagnosticsPolling();
+    }
   },
 
   openWindow(panelKey) {
@@ -19942,7 +20796,7 @@ window.TacticalWindowManager = {
       const el = document.getElementById(cfg.id);
       if (!el) return;
       const pos = cfg.defaultPos();
-      const defOpen = cfg.defaultOpen !== false;
+      const defOpen = cfg.defaultOpen === true;
       el.style.left = pos.left + 'px';
       el.style.top = pos.top + 'px';
       el.style.width = pos.width + 'px';
@@ -20066,9 +20920,11 @@ window.TacticalWindowManager = {
       const width = s && typeof s.width === 'number' ? s.width : def.width;
       const height = s && typeof s.height === 'number' ? s.height : def.height;
       const scale = s && typeof s.scale === 'number' ? Math.max(0.70, Math.min(1.50, s.scale)) : 1.0;
-      const defOpen = cfg.defaultOpen !== false;
-      const open = s ? s.open !== false : defOpen;
-      const minimized = s ? !!s.minimized : false;
+      // STRICT: Tactical floating windows must start CLOSED on every launch.
+      // Saved layout (left, top, width, height, scale) is restored so user positioning is preserved
+      // when the window is later opened, but open/minimized states are never restored at startup.
+      const open = false;
+      const minimized = false;
 
       el.style.left = left + 'px';
       el.style.top = top + 'px';
@@ -20078,7 +20934,7 @@ window.TacticalWindowManager = {
       el.style.bottom = 'auto';
       el.style.setProperty('--win-scale', scale.toFixed(2));
       el.style.fontSize = Math.round(11 * scale) + 'px';
-      el.style.display = (!open || minimized) ? 'none' : 'flex';
+      el.style.display = 'none';
 
       this._scales[key] = scale;
       this._states[key] = { left, top, width, height, scale, open, minimized };
@@ -20284,9 +21140,46 @@ window.getDiagnosticsRenderMode = function() {
 
 window._lastDiagnosticsReportData = null;
 
-window.updateDiagnosticsTelemetry = async function(force = false) {
+// Managed Diagnostics Polling Controller
+window._diagFetchPending = false;
+window._diagPollTimer = null;
+window._diagBackoffMs = 5000;
+window._diagLastDataHash = '';
+
+window.isDiagnosticsConsumerVisible = function() {
+  if (document.hidden) return false;
+  if (typeof document.hasFocus === 'function' && !document.hasFocus()) return false;
+  if (typeof SpatialNav !== 'undefined' && Math.abs(SpatialNav.currentX) > 475) return false;
   const win = document.getElementById('tactical-win-diagnostics');
-  if (!win && !force) return;
+  if (!win || win.style.display === 'none') return false;
+  const st = window.TacticalWindowManager && window.TacticalWindowManager._states && window.TacticalWindowManager._states.diagnostics;
+  if (st && (!st.open || st.minimized)) return false;
+  return true;
+};
+
+window.stopDiagnosticsPolling = function() {
+  if (window._diagPollTimer) {
+    clearTimeout(window._diagPollTimer);
+    window._diagPollTimer = null;
+  }
+};
+
+window.scheduleNextDiagnosticsPoll = function(delayMs = 5000) {
+  window.stopDiagnosticsPolling();
+  if (!window.isDiagnosticsConsumerVisible()) return;
+  window._diagPollTimer = setTimeout(() => {
+    window.updateDiagnosticsTelemetry(false);
+  }, delayMs);
+};
+
+window.updateDiagnosticsTelemetry = async function(force = false) {
+  if (!force && !window.isDiagnosticsConsumerVisible()) {
+    window.stopDiagnosticsPolling();
+    return;
+  }
+
+  if (window._diagFetchPending) return;
+  window._diagFetchPending = true;
 
   const fm = window.getDiagnosticsFrameMetrics();
   const ent = window.getDiagnosticsEntitiesBreakdown();
@@ -20319,15 +21212,30 @@ window.updateDiagnosticsTelemetry = async function(force = false) {
     }
   }
 
-  // Fetch host system diagnostics (psutil, webkit, ollama, whisper)
+  let nextDelay = 5000;
   let sysData = null;
   try {
     const resp = await fetch('/api/diagnostics/system');
     if (resp.ok) {
       sysData = await resp.json();
+      window._diagBackoffMs = 5000;
+      const dataHash = `${sysData.python_app?.cpu_percent || 0}_${sysData.python_app?.rss_mb || 0}_${sysData.webkit_processes?.total_cpu_percent || 0}_${sysData.webkit_processes?.total_rss_mb || 0}`;
+      if (dataHash === window._diagLastDataHash) {
+        nextDelay = 10000;
+      } else {
+        window._diagLastDataHash = dataHash;
+        nextDelay = 5000;
+      }
+    } else {
+      window._diagBackoffMs = Math.min(60000, (window._diagBackoffMs || 5000) * 2);
+      nextDelay = window._diagBackoffMs;
     }
   } catch (err) {
-    // Standalone fallback
+    window._diagBackoffMs = Math.min(60000, (window._diagBackoffMs || 5000) * 2);
+    nextDelay = window._diagBackoffMs;
+  } finally {
+    window._diagFetchPending = false;
+    window.scheduleNextDiagnosticsPoll(nextDelay);
   }
 
   if (sysData) {
@@ -20486,10 +21394,24 @@ window.copyDiagnosticsReport = function() {
   }
 };
 
-// Diagnostics 2-second background refresh timer
-setInterval(() => {
-  window.updateDiagnosticsTelemetry();
-}, 2000);
+// Diagnostics event listeners for managed lifecycle
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (typeof window.stopDiagnosticsPolling === 'function') window.stopDiagnosticsPolling();
+  } else if (typeof window.isDiagnosticsConsumerVisible === 'function' && window.isDiagnosticsConsumerVisible()) {
+    window.updateDiagnosticsTelemetry(true);
+  }
+});
+
+window.addEventListener('blur', () => {
+  if (typeof window.stopDiagnosticsPolling === 'function') window.stopDiagnosticsPolling();
+});
+
+window.addEventListener('focus', () => {
+  if (typeof window.isDiagnosticsConsumerVisible === 'function' && window.isDiagnosticsConsumerVisible()) {
+    window.updateDiagnosticsTelemetry(true);
+  }
+});
 
 // Global shortcut: Ctrl+Shift+D toggles Diagnostics Window
 window.addEventListener('keydown', (e) => {
@@ -23010,6 +23932,20 @@ function initGlobeIntelligence(viewer) {
 
         const countEl = document.getElementById('radar-contact-count');
         if (countEl) countEl.textContent = _aircraftFlightMap.size;
+        const winCountEl = document.getElementById('radar-contact-count-win');
+        if (winCountEl) winCountEl.textContent = _aircraftFlightMap.size;
+        const winBadgeEl = document.getElementById('win-airspace-badge');
+        if (winBadgeEl) winBadgeEl.textContent = `${_aircraftFlightMap.size} CONTACTS`;
+        const winAirList = document.getElementById('win-airspace-list');
+        if (winAirList && _aircraftFlightMap.size > 0) {
+          const topContacts = Array.from(_aircraftFlightMap.values()).slice(0, 15);
+          winAirList.innerHTML = topContacts.map(c => `
+            <div style="display:flex; justify-content:space-between; align-items:center; color:#E6E6E6; background:rgba(255,255,255,0.03); padding:3px 6px; border-radius:3px; font-family:var(--mono);">
+              <span style="font-weight:700; color:${c.catColor || '#38BDF8'};">✈ ${c.callsign}</span>
+              <span style="color:#A1A1AA; font-size:8.5px;">${c.altMeters ? Math.round(c.altMeters * 3.28084) + ' ft' : 'GND'} • ${Math.round(c.speedKnots || 0)} kts</span>
+            </div>
+          `).join('');
+        }
         if (_aircraftFlightMap.size > 0 && window.JarvisSFX && _tacticalLayers.flights) {
           window.JarvisSFX.radarPing();
         }

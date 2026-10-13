@@ -152,6 +152,50 @@ class AgentRouter:
                     return True, f"Opening {finding.title} inside the internal browser surface.", surf_task, "followup_select"
             return True, "No active search results to select from.", None, "followup_select"
 
+        # ── 2.5 OSINT Investigation Fast-Path ─────────────
+        # Ambiguous investigation without target asks for clarification
+        m_ambig = re.search(r'^(?:(?:hey\s+)?jarvis,?\s*)?(?:start\s+(?:an?\s+)?(?:investigation|recon)|investigate(?:\s+(?:someone|something|target|person))?|recon(?:\s+(?:someone|something|target|person))?|stalk\s+(?:someone|target))$', text_lower)
+        if m_ambig:
+            return True, f"Which target username, email, domain, or IP shall we investigate, {sal}?", None, "clarification"
+
+        # Fast-path pattern extractors
+        target_cand = None
+        # Explicit commands: investigate, stalk, recon, deep_scan, dox <target>
+        m_inv = re.search(r'^(?:(?:hey\s+)?jarvis,?\s*)?(?:investigate|stalk|deep_scan|recon|dox)\s+([^\s\?]+)', text_lower)
+        # "find (accounts|profiles) (for|of) <x>"
+        m_find = re.search(r'^(?:(?:hey\s+)?jarvis,?\s*)?(?:find|get|list|show)\s+(?:accounts|profiles)\s+(?:for|of)\s+(?:username\s+|user\s+|target\s+)?(.+?)(?:\s*\?)?$', text_lower)
+        # "search (for)? username <x>"
+        m_uname = re.search(r'^(?:(?:hey\s+)?jarvis,?\s*)?search\s+(?:for\s+)?username\s+(.+?)(?:\s*\?)?$', text_lower)
+        # "check (if)? <x> exists (online)?"
+        m_exists = re.search(r'^(?:(?:hey\s+)?jarvis,?\s*)?check\s+(?:if\s+)?(.+?)\s+exists(?:\s+online)?(?:\s*\?)?$', text_lower)
+        # "(who is|look up) <x> online"
+        m_who = re.search(r'^(?:(?:hey\s+)?jarvis,?\s*)?(?:who\s+is|look\s+up)\s+(.+?)\s+online(?:\s*\?)?$', text_lower)
+        # "has <email> been (breached|pwned|leaked)"
+        m_breach = re.search(r'^(?:(?:hey\s+)?jarvis,?\s*)?(?:has\s+)?(.+?)\s+been\s+(?:breached|pwned|leaked)(?:\s*\?)?$', text_lower)
+        m_breach_colon = re.search(r'^(?:(?:hey\s+)?jarvis,?\s*)?(?:has\s+(?:this\s+)?email\s+been\s+(?:breached|pwned|leaked)\s*[:\-]?\s*)(.+?)(?:\s*\?)?$', text_lower)
+        # "email breach <email>"
+        m_em_breach = re.search(r'^(?:(?:hey\s+)?jarvis,?\s*)?(?:email\s+breach(?:\s+check)?|check\s+email\s+breach)\s+(.+?)(?:\s*\?)?$', text_lower)
+
+        for m in (m_inv, m_find, m_uname, m_exists, m_who, m_breach, m_breach_colon, m_em_breach):
+            if m:
+                target_cand = m.group(1).strip().strip("'\"<>:;,?")
+                break
+
+        if target_cand and target_cand.lower() not in ("jarvis", "me", "you", "us", "him", "her", "them", "someone", "something"):
+            from core.input_parser import parse, is_classifiable_target
+            if not is_classifiable_target(target_cand):
+                clarification_msg = f"Which target username, email, domain, or IP shall we investigate, {sal}?"
+                return True, clarification_msg, None, "clarification"
+
+            parsed = parse(target_cand)
+            target_sanitized = parsed.value
+            task = self.task_manager.create_task(
+                type_=TaskType.OSINT_INVESTIGATE.value,
+                title=f"OSINT: {target_sanitized}",
+                data={"target": target_sanitized, "target_type": parsed.target_type, "query": text_strip}
+            )
+            return True, f"Initiating OSINT reconnaissance on {target_sanitized}, {sal}.", task, "osint_investigate"
+
         # ── 3. Autonomous Terminal / System Commands ──────
         cmd_candidate = None
         m_cmd_explicit = re.search(r'^(?:run\s+command|execute\s+command|terminal|shell|bash)\s*[:\-]?\s*(.+)$', text_strip, re.IGNORECASE)
@@ -491,6 +535,20 @@ class AgentRouter:
                 data={"query": text_strip}
             )
             return True, f"Computing precision turn-by-turn road route and maneuvers, {sal}.", task, "directions"
+
+        elif action == "osint_investigate":
+            tgt = str(primary_step.get("target") or text_strip).strip().strip("'\"<>:;,?")
+            from core.input_parser import parse, is_classifiable_target
+            if not is_classifiable_target(tgt):
+                return True, f"Which target username, email, domain, or IP shall we investigate, {sal}?", None, "clarification"
+            parsed = parse(tgt)
+            target_sanitized = parsed.value
+            task = self.task_manager.create_task(
+                type_=TaskType.OSINT_INVESTIGATE.value,
+                title=f"OSINT: {target_sanitized}",
+                data={"target": target_sanitized, "target_type": parsed.target_type, "query": text_strip}
+            )
+            return True, f"Initiating OSINT target reconnaissance on {target_sanitized}, {sal}.", task, "osint_investigate"
 
         elif action == "cyber_recon":
             tgt = primary_step.get("target", "target")

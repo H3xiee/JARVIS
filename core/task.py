@@ -22,6 +22,7 @@ class TaskType(str, Enum):
     TERMINAL_COMMAND = "terminal_command"
     MEMORY_RECALL = "memory_recall"
     INVESTIGATION = "investigation"
+    OSINT_INVESTIGATE = "osint_investigate"
     FLIGHT_INTEL = "flight_intel"
     WEATHER_INTEL = "weather_intel"
     TRAFFIC_INTEL = "traffic_intel"

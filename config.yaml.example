@@ -65,6 +65,7 @@ tools:
 ui:
   mode: desktop
   theme: warm_cream
+  auto_open_cold_room: true
 
 # ── Voice Activation & Continued-Conversation Pipeline ───────────
 audio_pipeline:

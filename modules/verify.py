@@ -88,11 +88,12 @@ async def verify_hit(entity: Entity, lessons_store=None, case_slug: str = None) 
         if url and case_slug:
             try:
                 import modules.evidence as evidence
-                entity_id = f"{entity.entity_type}_{entity.value}_{entity.platform or 'api'}"
-                entity_id = re.sub(r"[^a-zA-Z0-9_\-]", "_", entity_id.lower())
+                entity_id = entity.entity_id
                 cap_res = await evidence.capture(url, case_slug, entity_id)
                 if cap_res.get("success"):
-                    entity.metadata["screenshot_path"] = cap_res.get("screenshot_path")
+                    shot = cap_res.get("screenshot_url") or cap_res.get("screenshot_path")
+                    entity.metadata["screenshot_path"] = shot
+                    entity.metadata["screenshot_url"] = shot
             except Exception:
                 pass
         return entity
@@ -135,11 +136,12 @@ async def verify_hit(entity: Entity, lessons_store=None, case_slug: str = None) 
     if entity.metadata.get("verified") is True and case_slug and pw_ok:
         try:
             import modules.evidence as evidence
-            entity_id = f"{entity.entity_type}_{entity.value}_{platform.lower()}"
-            entity_id = re.sub(r"[^a-zA-Z0-9_\-]", "_", entity_id)
+            entity_id = entity.entity_id
             cap_res = await evidence.capture(url, case_slug, entity_id)
             if cap_res.get("success"):
-                entity.metadata["screenshot_path"] = cap_res.get("screenshot_path")
+                shot = cap_res.get("screenshot_url") or cap_res.get("screenshot_path")
+                entity.metadata["screenshot_path"] = shot
+                entity.metadata["screenshot_url"] = shot
         except Exception:
             pass
 
@@ -150,8 +152,7 @@ async def _verify_via_headless(entity: Entity, url: str, platform: str, case_slu
     """Verify via Playwright headless browser."""
     entity.metadata["verification_method"] = "browser"
     try:
-        entity_id = f"{entity.entity_type}_{entity.value}_{platform.lower()}"
-        entity_id = re.sub(r"[^a-zA-Z0-9_\-]", "_", entity_id)
+        entity_id = entity.entity_id
         if case_slug:
             evidence_dir = Path(__file__).parent.parent / "cases" / case_slug / "evidence"
             evidence_dir.mkdir(parents=True, exist_ok=True)
@@ -168,7 +169,9 @@ async def _verify_via_headless(entity: Entity, url: str, platform: str, case_slu
             if result.get("og_description"):
                 entity.metadata["description"] = result.get("og_description")
             if screenshot_path:
-                entity.metadata["screenshot_path"] = f"cases/{case_slug}/evidence/{entity_id}.png"
+                shot = f"/cases/{case_slug}/evidence/{entity_id}.png"
+                entity.metadata["screenshot_path"] = shot
+                entity.metadata["screenshot_url"] = shot
         else:
             entity.metadata["verified"] = False
             entity.metadata["verification_reason"] = "not found in browser"

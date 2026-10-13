@@ -5,7 +5,7 @@ from core.target_model import Target
 
 
 def generate(target: Target, cases_dir: Path = Path("cases")) -> Path:
-    slug = target.primary.replace("@", "_").replace(".", "_")
+    slug = target.case_slug
     folder = cases_dir / slug
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / "report.html"
@@ -91,9 +91,34 @@ def generate(target: Target, cases_dir: Path = Path("cases")) -> Path:
             provider_notes.append(f'<span class="tag {status_tag}">{note}</span>')
     provider_notes_html = " ".join(provider_notes)
 
+    try:
+        from core.orchestrator import get_sources_and_statuses
+        sources_status = get_sources_and_statuses(target)
+    except Exception:
+        sources_status = {}
+
+    sources_rows = ""
+    tag_map = {
+        "ok": "g",
+        "skipped": "y",
+        "rate limited": "y",
+        "failed": "r",
+    }
+    for src_name, info in sources_status.items():
+        st = info.get("status", "ok")
+        dt = info.get("detail", "")
+        badge = f'<span class="tag {tag_map.get(st, "y")}">{st}</span>'
+        display_name = src_name.replace("_", " ").title()
+        sources_rows += f"""
+        <tr>
+          <td><strong>{display_name}</strong></td>
+          <td>{badge}</td>
+          <td style="color:#7a5030;">{dt}</td>
+        </tr>"""
+
     timeline_items = ""
     for item in target.timeline:
-        ts = item["at"][:19].replace("T", " ")
+        ts = (item.get("at") or datetime.now().isoformat())[:19].replace("T", " ")
         timeline_items += f"""
         <div class="tl-item">
           <span class="tl-time">{ts}</span>
@@ -176,6 +201,14 @@ def generate(target: Target, cases_dir: Path = Path("cases")) -> Path:
       <div class="rbar"><div class="rfill"></div></div>
     </div>
   </div>
+</div>
+
+<div class="card">
+  <h2>Sources and status</h2>
+  <table>
+    <tr><th>Source</th><th>Status</th><th>Details</th></tr>
+    {sources_rows or '<tr><td colspan="3">No sources recorded</td></tr>'}
+  </table>
 </div>
 
 <div class="card">

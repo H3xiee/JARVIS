@@ -732,6 +732,7 @@ class JarvisAPI:
         self._window = None
         self._window_mode = "hud" if (initial_mode or "").lower() in ("hud", "voiceos", "mini", "capsule", "pill") else "full"
         self._target: Target = None
+        self._memory = SessionMemory()
         from narrative.jarvis_voice import get_jarvis_voice
         self._voice = get_jarvis_voice()
         from core.jarvis_reasoning_loop import JarvisCognitiveLoop
@@ -742,6 +743,8 @@ class JarvisAPI:
         self._stalk_task = None
         self._last_entity = None  # Track for false-positive command
         self._wake_window_expires = 0.0
+        self._msg_t0 = 0.0
+        self._last_input_seen = ("", 0.0)
         self._recent_agent_responses = []
         self._tts_playback_until = 0.0
         self._tts_turn_lock = threading.Lock()
@@ -750,6 +753,9 @@ class JarvisAPI:
         self._turn_playback_events = {}
         self._turn_events_lock = threading.Lock()
         self._current_tts_proc = None
+        self._diagnostics_cache = None
+        self._diagnostics_cache_time = 0.0
+        self._diagnostics_lock = threading.Lock()
         self._active_tts_turn_abort = threading.Event()
         self._active_native_procs = []
         self._native_procs_lock = threading.Lock()
@@ -1632,8 +1638,12 @@ class JarvisAPI:
                     return
                 elif fp_cat == "osint_investigate" and fp_task:
                     target_str = fp_task.data.get("target")
-                    self._emit("scan_status", {"message": f"Autonomous OSINT reconnaissance initiated — Target: {target_str}"})
-                    self._run_stalk(target_str, None)
+                    self._emit("scan_status", {
+                        "message": f"Autonomous OSINT reconnaissance initiated — Target: {target_str}",
+                        "target": target_str,
+                        "is_investigation": True
+                    })
+                    self._run_stalk(target_str, None, task_id=fp_task.task_id)
                     return
 
             # 1. Zero-LLM Fast-Path check: system agency controls, volume, media, app launching, mute, terminal, task surface, rules, salutation
@@ -1726,7 +1736,11 @@ class JarvisAPI:
                 # Clarification answer or resolved follow-up directly launching an investigation
                 if (cls_type in ("clarification_answer", "follow_up")) and intent_name == "investigate" and entities.get("target"):
                     target_str = entities["target"]
-                    self._emit("scan_status", {"message": f"AI identified investigation task from context — Target: {target_str}"})
+                    self._emit("scan_status", {
+                        "message": f"AI identified investigation task from context — Target: {target_str}",
+                        "target": target_str,
+                        "is_investigation": True
+                    })
                     self._run_stalk(target_str, None)
                     return
 
@@ -1813,7 +1827,11 @@ class JarvisAPI:
             print(f"[desktop] AI Intent decision: {intent}")
             if intent["type"] == "investigate" and intent.get("target"):
                 target_str = intent["target"]
-                self._emit("scan_status", {"message": f"AI identified investigation task — Target: {target_str}"})
+                self._emit("scan_status", {
+                    "message": f"AI identified investigation task — Target: {target_str}",
+                    "target": target_str,
+                    "is_investigation": True
+                })
                 brief = None
                 if _CONTEXT_SIGNALS.search(eff_text):
                     brief = parse_brief_with_slm(eff_text)
@@ -2019,6 +2037,7 @@ class JarvisAPI:
                     "groq_api_key": clean("groq_api_key") or os.environ.get("GROQ_API_KEY", ""),
                     "operator_salutation": cur_sal,
                     "tools": config.get("tools", {}),
+                    "auto_open_cold_room": bool(config.get("ui", {}).get("auto_open_cold_room", config.get("auto_open_cold_room", True))),
                 }
         except Exception as e:
             print(f"[desktop] Error loading config: {e}")
@@ -2223,6 +2242,14 @@ class JarvisAPI:
 
     def get_system_diagnostics(self) -> dict:
         """Collect live process RSS & CPU for Python app, WebKit processes, Ollama, Whisper status, and Ollama loaded models."""
+        now = time.time()
+        if hasattr(self, '_diagnostics_lock') and self._diagnostics_lock is not None:
+            with self._diagnostics_lock:
+                if self._diagnostics_cache is not None and (now - getattr(self, '_diagnostics_cache_time', 0.0)) < 2.0:
+                    return self._diagnostics_cache
+        elif getattr(self, '_diagnostics_cache', None) is not None and (now - getattr(self, '_diagnostics_cache_time', 0.0)) < 2.0:
+            return self._diagnostics_cache
+
         diag = {
             "python_app": {
                 "pid": os.getpid(),
@@ -2345,6 +2372,14 @@ class JarvisAPI:
         )
         diag["whisper"]["loaded"] = whisper_loaded
         diag["whisper"]["status"] = "Loaded in memory" if whisper_loaded else "Unloaded (idle / lazy)"
+
+        if hasattr(self, '_diagnostics_lock') and self._diagnostics_lock is not None:
+            with self._diagnostics_lock:
+                self._diagnostics_cache = diag
+                self._diagnostics_cache_time = time.time()
+        else:
+            self._diagnostics_cache = diag
+            self._diagnostics_cache_time = time.time()
 
         return diag
 
@@ -2904,17 +2939,25 @@ class JarvisAPI:
             return []
         evidence_items = []
         try:
-            case_slug = self._target.primary.replace("@", "_").replace(".", "_")
-            evidence_dir = Path.home() / ".jarvis" / "cases" / case_slug / "evidence"
-            if not evidence_dir.exists():
-                evidence_dir = Path.home() / ".joe" / "cases" / case_slug / "evidence"
-            if evidence_dir.exists():
-                for p in evidence_dir.glob("*.png"):
-                    evidence_items.append({
-                        "filename": p.name,
-                        "path": str(p),
-                        "time": time.ctime(p.stat().st_mtime)
-                    })
+            from core.target_model import CASES_DIR
+            case_slug = getattr(self._target, "case_slug", self._target.primary.replace("@", "_").replace(".", "_"))
+            candidate_dirs = [
+                CASES_DIR / case_slug / "evidence",
+                Path.home() / ".jarvis" / "cases" / case_slug / "evidence",
+                Path.home() / ".joe" / "cases" / case_slug / "evidence",
+            ]
+            seen = set()
+            for evidence_dir in candidate_dirs:
+                if evidence_dir.exists():
+                    for p in sorted(evidence_dir.glob("*.png")):
+                        if p.name not in seen:
+                            seen.add(p.name)
+                            evidence_items.append({
+                                "filename": p.name,
+                                "path": f"/cases/{case_slug}/evidence/{p.name}",
+                                "local_path": str(p),
+                                "time": time.ctime(p.stat().st_mtime)
+                            })
         except Exception as e:
             print(f"[desktop] Error listing evidence: {e}")
         return evidence_items
@@ -2968,22 +3011,46 @@ class JarvisAPI:
         from exporters.html_report import generate
         path = generate(self._target)
         self._emit("report_ready", {"path": str(path)})
-
     def get_evidence_uri(self, relative_path: str) -> str:
         if not relative_path:
             return ""
         try:
+            path = None
             if relative_path.startswith("file://"):
                 from urllib.parse import unquote, urlparse
                 p_str = unquote(urlparse(relative_path).path)
                 path = Path(p_str).resolve()
             else:
                 p = Path(relative_path)
-                if p.is_absolute():
+                if p.is_absolute() and p.exists() and p.is_file():
                     path = p.resolve()
                 else:
-                    rel = relative_path.lstrip("./").lstrip("/")
-                    path = (ROOT.parent / rel).resolve()
+                    rel = relative_path.lstrip("/").lstrip("./")
+                    from core.target_model import CASES_DIR
+                    if rel.startswith("cases/"):
+                        sub_rel = rel[len("cases/"):]
+                        candidates = [
+                            CASES_DIR / sub_rel,
+                            ROOT.parent / rel,
+                            Path.home() / ".jarvis" / "cases" / sub_rel,
+                            Path.home() / ".joe" / "cases" / sub_rel,
+                            Path.home() / ".jarvis" / rel,
+                            Path.home() / ".joe" / rel,
+                        ]
+                    else:
+                        candidates = [
+                            ROOT.parent / rel,
+                            CASES_DIR / rel,
+                            Path.home() / ".jarvis" / rel,
+                            Path.home() / ".joe" / rel,
+                        ]
+                    for cand in candidates:
+                        cand_res = cand.resolve()
+                        if cand_res.exists() and cand_res.is_file():
+                            path = cand_res
+                            break
+                    if path is None:
+                        path = (ROOT.parent / rel).resolve()
 
             if path.exists() and path.is_file():
                 import base64
@@ -3043,7 +3110,7 @@ class JarvisAPI:
             self._emit("error", {"message": "Who do you want me to look into? I need a clear target."})
             return
 
-        self._emit("scan_status", {"message": f"Target locked: {target_str}", "target": target_str})
+        self._emit("scan_status", {"message": f"Target locked: {target_str}", "target": target_str, "is_investigation": True})
 
         # Extract brief from context beyond the target
         # If the user typed "investigate johndoe — they worked at Acme Corp"
@@ -3061,24 +3128,44 @@ class JarvisAPI:
         remainder = re.sub(r"^[\-—–,;:]+\s*", "", remainder).strip()
 
         if remainder and _CONTEXT_SIGNALS.search(remainder):
-            self._emit("scan_status", {"message": "Parsing case brief from your context..."})
+            self._emit("scan_status", {"message": "Parsing case brief from your context...", "target": target_str, "is_investigation": True})
             brief = parse_brief_with_slm(remainder)
             if brief.hints:
                 hints_summary = ", ".join(brief.hints.keys())
-                self._emit("scan_status", {"message": f"Brief extracted: {hints_summary}"})
+                self._emit("scan_status", {"message": f"Brief extracted: {hints_summary}", "target": target_str, "is_investigation": True})
 
-        self._emit("scan_status", {"message": "Spinning up background engines..."})
+        self._emit("scan_status", {"message": "Spinning up background engines...", "target": target_str, "is_investigation": True})
         self._run_stalk(target_str, brief)
 
-    def _run_stalk(self, target: str, brief: CaseBrief = None):
+    def _run_stalk(self, target: str, brief: CaseBrief = None, task_id: str = None):
+        if not task_id:
+            try:
+                from core.task_manager import get_task_manager
+                from core.task import TaskType
+                tm = get_task_manager()
+                task_obj = tm.create_task(
+                    type_=TaskType.OSINT_INVESTIGATE.value,
+                    title=f"OSINT: {target}",
+                    data={"target": target}
+                )
+                task_id = task_obj.task_id
+            except Exception:
+                pass
+
         self._stalk_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._stalk_loop)
         orch = self._get_orchestrator()
-        self._stalk_task = self._stalk_loop.create_task(orch.stalk(target, brief=brief))
+        self._stalk_task = self._stalk_loop.create_task(orch.stalk(target, brief=brief, task_id=task_id))
         try:
             self._stalk_loop.run_until_complete(self._stalk_task)
         except asyncio.CancelledError:
             print("[desktop] Investigation cancelled by user.")
+            if task_id:
+                try:
+                    from core.task_manager import get_task_manager
+                    get_task_manager().fail_task(task_id, "Investigation cancelled by user")
+                except Exception:
+                    pass
             if self._target:
                 self._target.save()
                 self._stalk_loop.run_until_complete(self._on_done(self._target, aborted=True))
@@ -3086,6 +3173,12 @@ class JarvisAPI:
                 self._emit("error", {"message": "Investigation aborted before any data was gathered."})
         except Exception as e:
             print(f"[desktop] Error in stalk: {e}")
+            if task_id:
+                try:
+                    from core.task_manager import get_task_manager
+                    get_task_manager().fail_task(task_id, str(e))
+                except Exception:
+                    pass
             self._emit("error", {"message": f"I hit an error: {str(e)}"})
         finally:
             self._stalk_loop.close()
@@ -3981,6 +4074,13 @@ class JarvisAPI:
             or entity.metadata.get("link", "")
         )
 
+        shot = entity.metadata.get("screenshot_url") or entity.metadata.get("screenshot_path")
+        if shot and not shot.startswith("/") and not shot.startswith("http") and not shot.startswith("data:"):
+            shot = f"/{shot}"
+        if shot:
+            entity.metadata["screenshot_path"] = shot
+            entity.metadata["screenshot_url"] = shot
+
         self._emit("entity_found", {
             "type": entity.entity_type,
             "value": entity.value,
@@ -3990,7 +4090,8 @@ class JarvisAPI:
             "verified": is_verified,
             "quote": None,
             "should_narrate": False,
-            "screenshot_path": entity.metadata.get("screenshot_path"),
+            "screenshot_path": shot,
+            "screenshot_url": shot,
             "avatar_path": entity.metadata.get("avatar_path"),
             "metadata": entity.metadata,
         })
@@ -4008,14 +4109,19 @@ class JarvisAPI:
             def on_token(chunk: str):
                 self._emit("jarvis_stream_chunk", {"chunk": chunk})
 
-            result = self._voice.closing_monologue(target, on_token=on_token)
-            text = result["text"]
-            used_gemini = result.get("used_gemini", False)
-            error = result.get("error", False)
-            if result.get("rate_limited"):
-                self._emit("rate_limited", {})
+            if self._voice:
+                result = self._voice.closing_monologue(target, on_token=on_token)
+                text = result.get("text", "")
+                used_gemini = result.get("used_gemini", False)
+                error = result.get("error", False)
+                if result.get("rate_limited"):
+                    self._emit("rate_limited", {})
+            else:
+                text = ""
+                used_gemini = False
 
-        self._memory.add("jarvis", text or summary_text)
+        if getattr(self, '_memory', None):
+            self._memory.add("jarvis", text or summary_text)
         self._emit("investigation_done", {
             "target": target.to_dict(),
             "summary": summary_text,
@@ -5584,6 +5690,54 @@ def setup_jarvis_bottle_routes(app, server_root_path, api=None, server_uid=None,
         ok = ImageGeolocator().open_image_folder(image_path)
         return json.dumps({"success": ok})
 
+    @app.route('/cases/<case_path:path>')
+    def serve_case_evidence(case_path):
+        import mimetypes
+        from core.target_model import CASES_DIR
+
+        pure_path = (case_path.split('?')[0] if case_path else "").strip()
+        safe_path = os.path.normpath(pure_path).lstrip(os.sep)
+
+        # Strict directory traversal defense
+        if ".." in safe_path or safe_path.startswith("..") or os.path.isabs(safe_path):
+            return bottle.HTTPResponse("Forbidden", status=403)
+
+        candidate_bases = [
+            CASES_DIR,
+            Path.home() / ".jarvis" / "cases",
+            Path.home() / ".joe" / "cases",
+        ]
+
+        for base in candidate_bases:
+            try:
+                base_abs = base.resolve()
+                target_file = (base / safe_path).resolve()
+                if not str(target_file).startswith(str(base_abs)):
+                    continue
+                if target_file.is_file():
+                    mime, _ = mimetypes.guess_type(str(target_file))
+                    if not mime:
+                        ext = target_file.suffix.lower()
+                        if ext == ".png":
+                            mime = "image/png"
+                        elif ext in (".jpg", ".jpeg"):
+                            mime = "image/jpeg"
+                        elif ext == ".json":
+                            mime = "application/json"
+                        else:
+                            mime = "application/octet-stream"
+                    res = bottle.static_file(safe_path, root=str(base_abs), mimetype=mime)
+                    res.set_header('Cache-Control', 'public, max-age=3600')
+                    return res
+            except Exception:
+                continue
+
+        return bottle.HTTPResponse(
+            json.dumps({"error": "Case evidence not found", "path": case_path}),
+            status=404,
+            headers={'Content-Type': 'application/json'}
+        )
+
     @app.route('/')
     @app.route('/<file:path>')
     def asset(file="app.html"):
@@ -5598,9 +5752,12 @@ def setup_jarvis_bottle_routes(app, server_root_path, api=None, server_uid=None,
             return bottle.HTTPResponse("Forbidden", status=403)
         if os.path.exists(full_local) and not os.path.isdir(full_local):
             res = bottle.static_file(safe_file, root=server_root_path)
-            res.set_header('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0')
-            res.set_header('Pragma', 'no-cache')
-            res.set_header('Expires', '0')
+            # HTML entrypoints must never be cached so embedded browsers execute fresh code across restarts
+            # Heavy static assets (3D models, textures, audio, Cesium) retain standard cacheability
+            if safe_file.lower().endswith(('.html', '.htm')) or safe_file == 'app.html':
+                res.set_header('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0')
+                res.set_header('Pragma', 'no-cache')
+                res.set_header('Expires', '0')
             return res
         return bottle.HTTPResponse(
             json.dumps({"error": "Not Found", "path": file}),
