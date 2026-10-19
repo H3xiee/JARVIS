@@ -99,6 +99,8 @@ memory/*.json
 
 # Internal development & testing
 .pytest_cache/
+tests/
+core/calibration.py
 scripts/*
 !scripts/setup_playwright.sh
 !scripts/train_voice_phrases.py

@@ -356,20 +356,20 @@ class JarvisCognitiveLoop:
         self.bus.emit("open_live_news", {})
         return {"success": True, "debrief": f"Accessing 24/7 global SIGINT broadcast network, {sal}."}
 
-    def _ask_cloud(self, prompt: str, system: str, max_tokens: int = 250) -> Dict[str, Any]:
+    def _ask_cloud(self, prompt: str, system: str, max_tokens: int = 250, timeout: Optional[float] = None) -> Dict[str, Any]:
         """Try cloud LLMs via voice engine in priority order (Groq -> NVIDIA NIM -> Gemini)."""
         if self.voice and hasattr(self.voice, "_ask_cloud"):
-            return self.voice._ask_cloud(prompt, system, max_tokens=max_tokens)
+            return self.voice._ask_cloud(prompt, system, max_tokens=max_tokens, timeout=timeout)
         try:
             from narrative.jarvis_voice import get_jarvis_voice
             voice = get_jarvis_voice()
             if hasattr(voice, "_ask_cloud"):
-                return voice._ask_cloud(prompt, system, max_tokens=max_tokens)
+                return voice._ask_cloud(prompt, system, max_tokens=max_tokens, timeout=timeout)
         except Exception:
             pass
         return {"text": "", "rate_limited": False, "engine": None}
 
-    def _ask_slm(self, prompt: str, system: str, max_tokens: int = 250, timeout: int = 15) -> Dict[str, Any]:
+    def _ask_slm(self, prompt: str, system: str, max_tokens: int = 250, timeout: float = 15) -> Dict[str, Any]:
         if self.voice and hasattr(self.voice, "_ask_slm"):
             return self.voice._ask_slm(prompt, system, max_tokens=max_tokens, timeout=timeout)
         return {"text": "", "error": True}
@@ -411,6 +411,9 @@ class JarvisCognitiveLoop:
             r'\b(?:airspeed\s+velocity|capital\s+of)\b',
             r'\b(?:help\s+me\s+debug|write\s+a\s+python)\b',
             r'\bi\s+was\s+thinking\s+about\b',
+            r'\b(?:what\s+do\s+you\s+think|what\s+are\s+your\s+thoughts|how\s+do\s+you\s+feel|do\s+you\s+think|tell\s+me\s+about|what\s+is\s+your\s+take)\b',
+            r'\b(?:i\'m\s+just\s+asking|just\s+asking|just\s+wondering|what\s+happened)\b',
+            r'\b(?:will\s+.*\s+still\s+exist|still\s+exist)\b',
         ]):
             return True
 
@@ -479,7 +482,9 @@ class JarvisCognitiveLoop:
             return True
 
         # 5. General questions without tactical tool intent are conversational
-        if t.endswith('?') or re.match(r'^(?:what|how|who|why|where|when|which|is|are|can|could|would|will|do|does|did)\b', t):
+        if '?' in t or t.endswith('?') or re.match(r'^(?:what|how|who|why|where|when|which|is|are|can|could|would|will|do|does|did)\b', t):
+            return True
+        if re.search(r'\b(?:what|how|why|who|where|when|which|will|would|can|could|do|does|is|are)\s+(?:do|you|we|it|they|there|still|happen|exist|mean)\b', t):
             return True
 
         return False
@@ -569,10 +574,10 @@ Rules:
 
         res_text = ""
         try:
-            cloud = self._ask_cloud(prompt, sys_prompt, max_tokens=250)
+            cloud = self._ask_cloud(prompt, sys_prompt, max_tokens=250, timeout=4.0)
             res_text = cloud.get("text", "")
             if not res_text:
-                slm_res = self._ask_slm(prompt, sys_prompt, max_tokens=250, timeout=15)
+                slm_res = self._ask_slm(prompt, sys_prompt, max_tokens=250, timeout=3.5)
                 res_text = slm_res.get("text", "")
         except Exception:
             pass

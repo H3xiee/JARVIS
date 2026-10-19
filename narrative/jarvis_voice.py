@@ -712,7 +712,12 @@ class JarvisVoice:
                 r = self.client.post(url, json=payload, timeout=timeout)
                 if r.status_code == 200:
                     return {"text": r.json().get("response", "").strip(), "error": False}
-        except Exception:
+        except Exception as e:
+            if timeout <= 5.0:
+                return {
+                    "text": f"System Notice: SLM request timed out ({e}), Sir.",
+                    "error": True
+                }
             try:
                 r = self.client.post(
                     f"{OLLAMA_URL}/api/generate",
@@ -729,7 +734,7 @@ class JarvisVoice:
                             "num_ctx": 2048,
                         },
                     },
-                    timeout=90,
+                    timeout=min(timeout, 10.0),
                 )
                 if r.status_code == 200:
                     return {"text": r.json().get("response", "").strip(), "error": False}
@@ -744,7 +749,7 @@ class JarvisVoice:
             "error": True
         }
 
-    def _ask_nvidia(self, prompt: str, system: str, max_tokens: int = 4096, on_token: callable = None, image_path: str = None) -> tuple[str, bool]:
+    def _ask_nvidia(self, prompt: str, system: str, max_tokens: int = 4096, on_token: callable = None, image_path: str = None, timeout: Optional[float] = None) -> tuple[str, bool]:
         """
         Ask NVIDIA NIM API with real-time SSE streaming support and high token limit (4096).
         Returns (response_text, rate_limited).
@@ -769,9 +774,10 @@ class JarvisVoice:
                 ]
 
         candidate_models = [self.nvidia_model]
-        for fb in NVIDIA_FALLBACK_MODELS:
-            if fb not in candidate_models:
-                candidate_models.append(fb)
+        if timeout is None and max_tokens > 250:
+            for fb in NVIDIA_FALLBACK_MODELS:
+                if fb not in candidate_models:
+                    candidate_models.append(fb)
         for model_name in candidate_models:
             try:
                 headers = {
@@ -795,7 +801,8 @@ class JarvisVoice:
                 }
 
                 full_response = []
-                with self.client.stream("POST", NVIDIA_URL, headers=headers, json=payload, timeout=httpx.Timeout(45.0, connect=10.0)) as r:
+                nv_timeout = httpx.Timeout(timeout, connect=min(timeout, 3.0)) if timeout is not None else httpx.Timeout(12.0, connect=4.0)
+                with self.client.stream("POST", NVIDIA_URL, headers=headers, json=payload, timeout=nv_timeout) as r:
                     if r.status_code == 429:
                         self.nvidia_rate_limited = True
                         print(f"[jarvis_voice] NVIDIA NIM API rate-limited (429). Switching to fallback.")
@@ -837,7 +844,7 @@ class JarvisVoice:
 
         return "", False
 
-    def _ask_gemini(self, prompt: str, system: str, max_tokens: int = 4096, on_token: callable = None, image_path: str = None) -> tuple[str, bool]:
+    def _ask_gemini(self, prompt: str, system: str, max_tokens: int = 4096, on_token: callable = None, image_path: str = None, timeout: Optional[float] = None) -> tuple[str, bool]:
         """
         Ask Gemini API with SSE streaming support and high token limit (4096).
         Returns (response_text, rate_limited).
@@ -872,7 +879,8 @@ class JarvisVoice:
                 }
             }
             full_response = []
-            with self.client.stream("POST", url, params={"key": self.gemini_key}, headers=headers, json=payload, timeout=60.0) as r:
+            gemini_timeout = timeout if timeout is not None else 15.0
+            with self.client.stream("POST", url, params={"key": self.gemini_key}, headers=headers, json=payload, timeout=gemini_timeout) as r:
                 if r.status_code == 429:
                     self.gemini_rate_limited = True
                     print(f"[jarvis_voice] Gemini API rate-limited (429). Switching to fallback.")
@@ -910,7 +918,7 @@ class JarvisVoice:
             print(f"[jarvis_voice] Gemini error: {e}")
             return "", False
 
-    def _ask_groq(self, prompt: str, system: str, max_tokens: int = 4096, on_token: callable = None) -> tuple[str, bool]:
+    def _ask_groq(self, prompt: str, system: str, max_tokens: int = 4096, on_token: callable = None, timeout: Optional[float] = None) -> tuple[str, bool]:
         """
         Ask Groq LPU inference API with OpenAI-compatible SSE streaming.
         Returns (response_text, rate_limited).
@@ -925,6 +933,7 @@ class JarvisVoice:
         raw_models = [self.groq_model, "openai/gpt-oss-120b", "openai/gpt-oss-20b"]
         seen = set()
         models_to_try = [m for m in raw_models if m and not (m in seen or seen.add(m))]
+        groq_timeout = timeout if timeout is not None else 10.0
         for model in models_to_try:
             if not model:
                 continue
@@ -942,7 +951,7 @@ class JarvisVoice:
             try:
                 full_response = []
                 reasoning_chunks = []
-                with self.client.stream("POST", "https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=10.0) as r:
+                with self.client.stream("POST", "https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=groq_timeout) as r:
                     if r.status_code == 429:
                         self.groq_rate_limited = True
                         print(f"[jarvis_voice] Groq API rate-limited (429). Switching to fallback.")
@@ -991,7 +1000,7 @@ class JarvisVoice:
 
         return "", False
 
-    def _ask_cloud(self, prompt: str, system: str, max_tokens: int = 4096, on_token: callable = None, image_path: str = None) -> dict:
+    def _ask_cloud(self, prompt: str, system: str, max_tokens: int = 4096, on_token: callable = None, image_path: str = None, timeout: Optional[float] = None) -> dict:
         """
         Try cloud LLMs in priority order:
         For text-only conversations, Groq LPU runs first (<200ms TTFT) for natural voice speed.
@@ -1000,7 +1009,7 @@ class JarvisVoice:
         """
         # 1. Try Groq LPU first for ultra-low conversational voice latency (<200ms)
         if self.groq_available and not self.groq_rate_limited and not image_path:
-            text, r_limited = self._ask_groq(prompt, system, max_tokens=max_tokens, on_token=on_token)
+            text, r_limited = self._ask_groq(prompt, system, max_tokens=max_tokens, on_token=on_token, timeout=timeout)
             if r_limited:
                 self.groq_rate_limited = True
             elif text:
@@ -1008,7 +1017,7 @@ class JarvisVoice:
 
         # 2. Try NVIDIA NIM
         if self.nvidia_available and not self.nvidia_rate_limited:
-            text, r_limited = self._ask_nvidia(prompt, system, max_tokens=max_tokens, on_token=on_token, image_path=image_path)
+            text, r_limited = self._ask_nvidia(prompt, system, max_tokens=max_tokens, on_token=on_token, image_path=image_path, timeout=timeout)
             if r_limited:
                 self.nvidia_rate_limited = True
             elif text:
@@ -1016,7 +1025,7 @@ class JarvisVoice:
 
         # 3. Try Gemini third
         if self.gemini_available and not self.gemini_rate_limited:
-            text, r_limited = self._ask_gemini(prompt, system, max_tokens=max_tokens, on_token=on_token, image_path=image_path)
+            text, r_limited = self._ask_gemini(prompt, system, max_tokens=max_tokens, on_token=on_token, image_path=image_path, timeout=timeout)
             if r_limited:
                 self.gemini_rate_limited = True
             elif text:
@@ -2002,11 +2011,11 @@ Output ONLY a JSON object:
         sys_prompt = "You are a precise intent classification agent. Output raw JSON only."
 
         res_text = ""
-        cloud = self._ask_cloud(prompt, sys_prompt, max_tokens=150)
+        cloud = self._ask_cloud(prompt, sys_prompt, max_tokens=150, timeout=3.5)
         res_text = cloud.get("text", "")
 
         if not res_text:
-            slm_res = self._ask_slm(prompt, sys_prompt, max_tokens=150, timeout=15)
+            slm_res = self._ask_slm(prompt, sys_prompt, max_tokens=150, timeout=3.0)
             res_text = slm_res.get("text", "")
 
         try:

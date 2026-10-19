@@ -2052,7 +2052,12 @@ class JarvisAPI:
 
             # Conversational Fast-Path Check: bypass heavy cognitive loop & intent LLM for chitchat/questions
             from core.jarvis_reasoning_loop import JarvisCognitiveLoop
-            if JarvisCognitiveLoop.is_conversational_query(eff_text):
+            is_covo_intent = bool(
+                getattr(self, '_context_manager', None)
+                and intent_name in ("general_covo", "query", "chitchat", "greeting", "farewell", "appreciation")
+                and not (entities and entities.get("target"))
+            )
+            if is_covo_intent or JarvisCognitiveLoop.is_conversational_query(eff_text):
                 print(f"[TIMING] Intent classified: +{(time.time() - t0)*1000.0:.1f}ms (conversational bypass)")
                 self._run_ask(eff_text, t0=t0)
                 return
