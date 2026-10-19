@@ -29,7 +29,7 @@ cases/
 
 # Memory store — local embeddings, not for version control
 memory/chroma_db/
-cases/*/evidence/
+memory/*.json
 
 # Logs
 logs/
@@ -47,11 +47,16 @@ desktop.ini
 *.swo
 *~
 
-# Secrets
+# Secrets & API keys — never commit these
+.env
+.env.*
+!.env.example
+*.env
 config.yaml
 *.key
 *.pem
 api_keys*
+*_secret*
 
 # Temporary voice samples & scratch scripts
 assets/*_sample_*.wav
@@ -63,25 +68,11 @@ jarvis_voice_sample.*
 
 # PyInstaller
 *.spec
-dist/
-build/
 
 # Ollama models — never commit these
 *.bin
 *.gguf
 *.ggml
-
-cases/
-config.yaml
-
-# API Keys — never commit these
-.env
-.env.*
-!.env.example
-*.env
-config.yaml
-*_secret*
-api_keys*
 
 # Backup files & temporary local data
 *.zip
@@ -93,14 +84,9 @@ data/skill_templates/*
 !data/airlines.dat
 scratch/
 
-# Memory store data (not source code)
-memory/chroma_db/
-memory/*.json
-
 # Internal development & testing
 .pytest_cache/
 tests/
-core/calibration.py
 scripts/*
 !scripts/setup_playwright.sh
 !scripts/train_voice_phrases.py
