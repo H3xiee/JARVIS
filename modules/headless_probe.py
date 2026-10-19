@@ -195,6 +195,8 @@ async def probe(url: str, platform: str, screenshot_path: str|None = None) -> di
                 "screenshot_path": data.get("screenshot_path"),
                 "not_found_signals": data.get("not_found_signals", []),
                 "final_url": data.get("final_url", url),
+                "text_excerpt": data.get("text_excerpt", ""),
+                "body": data.get("text_excerpt", ""),
             })
             return result
         else:

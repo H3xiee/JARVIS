@@ -189,10 +189,11 @@ class AgentRouter:
 
             parsed = parse(target_cand)
             target_sanitized = parsed.value
+            is_explicit = bool(m == m_inv)
             task = self.task_manager.create_task(
                 type_=TaskType.OSINT_INVESTIGATE.value,
                 title=f"OSINT: {target_sanitized}",
-                data={"target": target_sanitized, "target_type": parsed.target_type, "query": text_strip}
+                data={"target": target_sanitized, "target_type": parsed.target_type, "query": text_strip, "is_explicit": is_explicit}
             )
             return True, f"Initiating OSINT reconnaissance on {target_sanitized}, {sal}.", task, "osint_investigate"
 
@@ -546,7 +547,7 @@ class AgentRouter:
             task = self.task_manager.create_task(
                 type_=TaskType.OSINT_INVESTIGATE.value,
                 title=f"OSINT: {target_sanitized}",
-                data={"target": target_sanitized, "target_type": parsed.target_type, "query": text_strip}
+                data={"target": target_sanitized, "target_type": parsed.target_type, "query": text_strip, "is_explicit": False}
             )
             return True, f"Initiating OSINT target reconnaissance on {target_sanitized}, {sal}.", task, "osint_investigate"
 

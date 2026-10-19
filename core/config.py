@@ -89,6 +89,11 @@ CONFIG_KEY_SPECS: Dict[str, Dict[str, Any]] = {
         "aliases": [],
         "default": True,
     },
+    "ALWAYS_CONFIRM_INVESTIGATIONS": {
+        "yaml_keys": ["always_confirm_investigations"],
+        "aliases": ["UI_ALWAYS_CONFIRM_INVESTIGATIONS"],
+        "default": False,
+    },
 }
 
 
@@ -243,6 +248,12 @@ def get_config(name: str, default: Any = "") -> Any:
         if yk == "auto_open_cold_room" and isinstance(yaml_data.get("ui"), dict):
             if "auto_open_cold_room" in yaml_data["ui"]:
                 val = yaml_data["ui"]["auto_open_cold_room"]
+                if isinstance(default, bool):
+                    return bool(val)
+                return val
+        if yk == "always_confirm_investigations" and isinstance(yaml_data.get("ui"), dict):
+            if "always_confirm_investigations" in yaml_data["ui"]:
+                val = yaml_data["ui"]["always_confirm_investigations"]
                 if isinstance(default, bool):
                     return bool(val)
                 return val

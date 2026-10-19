@@ -208,6 +208,7 @@ def show_help():
         ("export",           "export current case as HTML report"),
         ("fp <platform>",    "mark last finding as false positive (learns for future)"),
         ("  --ctf / --pentest", "  tag context for the lesson"),
+        ("calibrate [opts]", "measure false positives on nonexistent usernames"),
         ("help",             "show this"),
         ("exit",             "leave"),
     ]:

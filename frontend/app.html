@@ -1148,15 +1148,15 @@
   .summary-btn:hover { color: var(--text-primary); border-color: var(--accent); background: var(--accent-dim); }
 
   /* Evidence Cards */
-  .evidence-card { align-self: flex-start; max-width: 92%; width: 440px; background: rgba(20,7,7,0.88); border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 10px 12px; margin-top: 2px; }
-  .evidence-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-  .evidence-src { font-size: 11px; color: var(--text-secondary); font-family: var(--mono); }
-  .conf-badge { font-size: 10.5px; padding: 2px 7px; border-radius: 4px; font-family: var(--mono); }
+  .evidence-card { align-self: stretch; max-width: 100%; width: 100%; box-sizing: border-box; background: rgba(20,7,7,0.88); border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 10px 12px; margin-top: 2px; }
+  .evidence-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .evidence-src { font-size: 11px; color: var(--text-secondary); font-family: var(--mono); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; }
+  .conf-badge { font-size: 10.5px; padding: 2px 7px; border-radius: 4px; font-family: var(--mono); flex-shrink: 0; white-space: nowrap; }
   .conf-high { background: var(--good-bg); color: var(--good-text); border: 1px solid var(--border); }
   .conf-med { background: var(--warn-bg); color: var(--warn-text); border: 1px solid var(--warn-bg); }
   .conf-low { background: var(--bg-2); color: var(--text-muted); }
   .evidence-body { font-size: 12.5px; color: var(--text-primary); }
-  .evidence-body .val { font-family: var(--mono); color: var(--accent-text); font-weight: 600; }
+  .evidence-body .val { font-family: var(--mono); color: var(--accent-text); font-weight: 600; overflow-wrap: anywhere; word-break: break-word; }
   .evidence-foot { margin-top: 6px; display: flex; gap: 12px; }
   .evidence-foot a { font-size: 11px; color: var(--accent-text); text-decoration: none; cursor: pointer; }
   .evidence-foot a:hover { text-decoration: underline; }
@@ -1165,9 +1165,9 @@
   .error-line { align-self: flex-start; font-size: 12.5px; color: var(--danger-text); padding: 4px 0; background: transparent; border: none; }
 
   /* Inline Visualization Cards */
-  .viz-card { align-self: stretch; width: 100%; background: #08090A; border: 1px solid rgba(255, 255, 255, 0.06); border-radius: var(--radius); padding: 10px 12px; margin: 4px 0; }
+  .viz-card { align-self: stretch; width: 100%; box-sizing: border-box; background: #08090A; border: 1px solid rgba(255, 255, 255, 0.06); border-radius: var(--radius); padding: 10px 12px; margin: 4px 0; }
   .viz-card-3d {
-    align-self: stretch; width: 100%; background: #08090A;
+    align-self: stretch; width: 100%; box-sizing: border-box; background: #08090A;
     border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 10px 14px; margin: 8px 0;
     box-shadow: 0 4px 20px rgba(0,0,0,0.6), inset 0 0 15px rgba(255, 157, 46, 0.03);
     position: relative; overflow: hidden;
@@ -1177,11 +1177,49 @@
     background: #030405;
     border: 1px solid rgba(255, 255, 255, 0.06);
   }
-  .viz-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-  .viz-head .lbl { font-size: 11px; color: var(--text-secondary); font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.05em; }
-  .viz-head a { font-size: 11px; color: var(--accent-text); cursor: pointer; text-decoration: none; font-weight: 600; }
+  .viz-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .viz-head .lbl { font-size: 11px; color: var(--text-secondary); font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.05em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; }
+  .viz-head a { font-size: 11px; color: var(--accent-text); cursor: pointer; text-decoration: none; font-weight: 600; flex-shrink: 0; white-space: nowrap; }
   .viz-head a:hover { text-decoration: underline; }
   .viz-card svg { display: block; width: 100%; height: 150px; }
+
+  /* Responsive Screenshot Gallery */
+  .inline-evidence-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 10px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 6px 0;
+  }
+  .inline-evidence-item {
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  .inline-evidence-item img {
+    width: 100%;
+    height: 90px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .inline-evidence-item:hover img {
+    border-color: rgba(255, 157, 46, 0.5);
+    transform: scale(1.02);
+  }
+  .inline-evidence-item .thumb-label {
+    font-size: 10px;
+    color: #E6E6E6;
+    font-family: var(--mono);
+    margin-top: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .viz-node circle { fill: var(--bg-2); stroke: var(--accent); stroke-width: 1.2; }
   .viz-node text { fill: var(--text-secondary); font-size: 9px; font-family: var(--mono); }
   .viz-node.root circle { fill: var(--accent-dim); stroke: var(--accent-text); stroke-width: 1.6; }
@@ -1886,11 +1924,13 @@
     opacity: 1 !important;
     position: fixed !important;
     bottom: 78px !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-    width: min(680px, 54vw) !important;
-    max-height: 24vh !important;
-    min-height: 76px !important;
+    left: var(--chat-panel-left, calc(50% - var(--chat-panel-width, min(680px, 54vw)) / 2)) !important;
+    transform: none !important;
+    width: var(--chat-panel-width, min(680px, 54vw)) !important;
+    height: var(--chat-panel-height, 280px) !important;
+    max-height: none !important;
+    min-width: 360px !important;
+    min-height: 240px !important;
     margin: 0 !important;
     border: 1px solid rgba(255, 157, 46, 0.28) !important;
     background: rgba(6, 10, 18, 0.76) !important;
@@ -1903,16 +1943,69 @@
     pointer-events: auto !important;
     display: flex !important;
     flex-direction: column !important;
-    justify-content: flex-end !important;
-    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.28s ease, max-height 0.28s ease, min-height 0.28s ease, border-color 0.28s ease !important;
+    justify-content: flex-start !important;
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.28s ease, border-color 0.28s ease !important;
   }
   body.chat-panel-collapsed #jarvis-chat-container {
     opacity: 0 !important;
     max-height: 0 !important;
     min-height: 0 !important;
+    height: 0 !important;
     border: none !important;
-    transform: translateX(-50%) translateY(20px) scale(0.96) !important;
+    transform: translateY(20px) scale(0.96) !important;
     pointer-events: none !important;
+  }
+  body.chat-panel-resizing #jarvis-chat-container,
+  body.chat-panel-resizing #jarvis-input-bar {
+    transition: none !important;
+    user-select: none !important;
+  }
+  /* Intelligence Feed Chat Panel Resize Handles */
+  .chat-resize-handle {
+    position: absolute;
+    z-index: 10000;
+    user-select: none;
+    touch-action: none;
+  }
+  .chat-resize-t {
+    top: 0;
+    left: 0;
+    right: 18px;
+    height: 7px;
+    cursor: ns-resize;
+  }
+  .chat-resize-r {
+    top: 18px;
+    bottom: 0;
+    right: 0;
+    width: 7px;
+    cursor: ew-resize;
+  }
+  .chat-resize-tr {
+    top: 0;
+    right: 0;
+    width: 14px;
+    height: 14px;
+    cursor: nesw-resize;
+    z-index: 10001;
+  }
+  .chat-resize-tr::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 5px;
+    height: 5px;
+    border-top: 1.5px solid rgba(255, 157, 46, 0.45);
+    border-right: 1.5px solid rgba(255, 157, 46, 0.45);
+    opacity: 0.65;
+    transition: opacity 0.15s, border-color 0.15s;
+    pointer-events: none;
+  }
+  .chat-resize-handle:hover::after,
+  body.chat-panel-resizing .chat-resize-tr::after {
+    opacity: 1;
+    border-color: #FF9D2E;
   }
   .workspace-card-header { display: none !important; }
   .chat-panel-header {
@@ -1965,8 +2058,10 @@
 
   #thread {
     width: 100% !important;
-    max-height: calc(24vh - 34px) !important;
-    min-height: 44px !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
     margin: 0 !important;
     padding: 6px 12px !important;
     overflow-y: auto !important;
@@ -2041,13 +2136,17 @@
   #jarvis-input-bar {
     opacity: 1 !important;
     z-index: 300 !important;
-    width: min(720px, 58vw) !important;
-    bottom: 22px !important;
+    position: fixed !important;
+    width: var(--chat-panel-width, min(680px, 54vw)) !important;
+    max-width: none !important;
+    left: var(--chat-panel-left, calc(50% - var(--chat-panel-width, min(680px, 54vw)) / 2)) !important;
+    transform: none !important;
+    bottom: 12px !important;
     transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.28s ease !important;
   }
   body.chat-panel-collapsed #jarvis-input-bar {
     opacity: 0 !important;
-    transform: translateX(-50%) translateY(70px) scale(0.96) !important;
+    transform: translateY(70px) scale(0.96) !important;
     pointer-events: none !important;
   }
   #hint { display: none !important; }
@@ -2118,6 +2217,9 @@
   --spatial-x: 0px;
   --spatial-ratio: 0;
   --spatial-abs-ratio: 0;
+  --chat-panel-width: min(680px, 54vw);
+  --chat-panel-height: 280px;
+  --chat-panel-left: calc(50% - min(680px, 54vw) / 2);
 }
 
 .corner-gear-btn {
@@ -2190,6 +2292,9 @@ body.app-ready {
   z-index: 215;
   cursor: pointer;
   user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  pointer-events: auto !important;
   transition: opacity 0.22s ease, transform 0.22s ease, visibility 0.22s ease;
 }
 #spatial-edge-right {
@@ -2215,6 +2320,9 @@ body.app-ready {
   color: #FFB84D;
   letter-spacing: 0.08em;
   transition: all 0.2s ease;
+  cursor: pointer;
+  pointer-events: auto !important;
+  touch-action: none;
 }
 #spatial-edge-left .spatial-edge-pill {
   border-radius: 0 10px 10px 0;
@@ -2225,6 +2333,7 @@ body.app-ready {
   color: #FFFFFF;
   box-shadow: 0 0 18px rgba(255, 157, 46, 0.45);
 }
+
 
 #globe-overlay {
   display: none !important;
@@ -4408,8 +4517,14 @@ body.voiceos-mode:not(.chat-panel-collapsed) #jarvis-chat-container {
   display: flex !important;
   pointer-events: auto !important;
   opacity: 1 !important;
-  max-height: 28vh !important;
-  min-height: 76px !important;
+  width: var(--chat-panel-width, min(680px, 54vw)) !important;
+  height: var(--chat-panel-height, 280px) !important;
+  max-height: none !important;
+  min-width: 360px !important;
+  min-height: 240px !important;
+  left: var(--chat-panel-left, calc(50% - var(--chat-panel-width, min(680px, 54vw)) / 2)) !important;
+  transform: none !important;
+  bottom: 78px !important;
   z-index: 9996 !important;
 }
 
@@ -4419,9 +4534,10 @@ body.voiceos-mode:not(.chat-panel-collapsed) #jarvis-input-bar {
   pointer-events: auto !important;
   position: fixed !important;
   bottom: 12px !important;
-  left: 50% !important;
-  transform: translateX(-50%) !important;
-  width: min(680px, 54vw) !important;
+  left: var(--chat-panel-left, calc(50% - var(--chat-panel-width, min(680px, 54vw)) / 2)) !important;
+  transform: none !important;
+  width: var(--chat-panel-width, min(680px, 54vw)) !important;
+  max-width: none !important;
   z-index: 9996 !important;
 }
 
@@ -5872,13 +5988,18 @@ body.voiceos-mode #jarvis-hud-notch-wrapper {
     </div>
 
     <!-- Pane 2: Real-time Entity Correlation Topology Graph -->
-    <div class="cr-pane cr-pane-graph">
+    <div class="cr-pane cr-pane-graph" style="position:relative;">
       <div class="cr-pane-title">
         <span>◆ CORRELATION TOPOLOGY GRAPH</span>
-        <button class="cr-mini-btn" onclick="if(window.ColdRoomGraph)window.ColdRoomGraph.recenter();" title="Recenter Graph">⟲ RECENTER</button>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <button id="cr-mode-toggle" class="cr-mini-btn" onclick="if(window.ColdRoomGraph)window.ColdRoomGraph.toggleMode();" title="Toggle 3D / 2D Graph Mode">3D</button>
+          <button class="cr-mini-btn" onclick="if(window.ColdRoomGraph)window.ColdRoomGraph.recenter();" title="Recenter Graph">⟲ RECENTER</button>
+        </div>
       </div>
-      <div class="cr-graph-container" id="cr-graph-container">
-        <canvas id="cr-graph-canvas"></canvas>
+      <div id="cr-graph-notice" style="display:none; position:absolute; top:36px; left:12px; z-index:20; background:rgba(239,68,68,0.18); border:1px solid rgba(239,68,68,0.5); border-radius:4px; padding:3px 8px; font-family:'JetBrains Mono',monospace; font-size:10px; color:#FCA5A5; pointer-events:none;"></div>
+      <div class="cr-graph-container" id="cr-graph-container" style="position:relative;">
+        <div id="cr-graph-3d" style="position:absolute; inset:0; width:100%; height:100%; display:block;"></div>
+        <canvas id="cr-graph-canvas" style="position:absolute; inset:0; width:100%; height:100%; display:none;"></canvas>
       </div>
     </div>
 
@@ -6028,7 +6149,12 @@ body.voiceos-mode #jarvis-hud-notch-wrapper {
         
         <!-- CHAT CONVERSATION CONTAINER CARD -->
         <div id="jarvis-chat-container">
-          <div id="chat-panel-header" class="chat-panel-header" onclick="window.toggleChatPanel()">
+          <!-- Chat Panel Resize Handles (anchored bottom-left, expands up & right) -->
+          <div class="chat-resize-handle chat-resize-t" data-direction="t" aria-label="Resize height" title="Resize Height"></div>
+          <div class="chat-resize-handle chat-resize-r" data-direction="r" aria-label="Resize width" title="Resize Width"></div>
+          <div class="chat-resize-handle chat-resize-tr" data-direction="tr" aria-label="Resize both" title="Resize Both"></div>
+
+          <div id="chat-panel-header" class="chat-panel-header" onclick="window.handleChatPanelHeaderClick(event)" ondblclick="window.handleChatPanelHeaderDblClick(event)">
             <div class="chat-panel-header-title">
               <span class="chat-panel-pulse"></span>
               <span>INTELLIGENCE FEED</span>
@@ -6538,6 +6664,109 @@ body.voiceos-mode #jarvis-hud-notch-wrapper {
         <button id="target-dialog-cancel" style="padding: 8px 16px; background: transparent; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; color: #8A8D91; cursor: pointer;">Cancel</button>
         <button id="target-dialog-submit" style="padding: 8px 20px; background: rgba(255, 157, 46, 0.15); border: 1px solid #FF9D2E; border-radius: 6px; color: #FFB84D; font-weight: 600; cursor: pointer;">Start Recon</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Investigation Brief Modal Overlay -->
+<div class="overlay" id="investigation-brief-overlay" style="display:none; z-index:100005;">
+  <div class="overlay-panel brief-panel" style="width: 680px; max-width: 95vw; max-height: 90vh; background: #07090C; border: 1px solid rgba(0, 240, 255, 0.3); border-radius: 8px; box-shadow: 0 20px 60px rgba(0,0,0,0.95); display: flex; flex-direction: column; overflow: hidden; font-family: var(--sans);">
+    <!-- Header -->
+    <div class="overlay-head" style="padding: 16px 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); background: #0A0D12; display: flex; justify-content: space-between; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #00F0FF; box-shadow: 0 0 8px #00F0FF;"></span>
+        <span style="color: #00F0FF; font-weight: 700; letter-spacing: 1px; font-size: 14px; text-transform: uppercase;">Investigation Brief</span>
+      </div>
+      <button class="overlay-close" id="brief-close-btn" style="background: transparent; border: none; color: #8A8D91; cursor: pointer; padding: 4px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <!-- Voice Transcript Banner (when opened via voice) -->
+    <div id="brief-voice-banner" style="display:none; padding: 10px 20px; background: rgba(0, 240, 255, 0.08); border-bottom: 1px solid rgba(0, 240, 255, 0.15); font-size: 12px; color: #7DD3FC; font-family: var(--mono); align-items: center; gap: 8px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+      <span>Heard: <strong id="brief-voice-text" style="color: #FFF;"></strong></span>
+    </div>
+
+    <!-- Scrollable Body -->
+    <div class="overlay-body" style="padding: 20px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 16px;">
+      <!-- Case Title -->
+      <div>
+        <label style="display: block; font-size: 11px; text-transform: uppercase; color: #8A8D91; letter-spacing: 0.8px; margin-bottom: 6px; font-weight: 600;">Case Title / Operation</label>
+        <input type="text" id="brief-case-title" placeholder="Optional operation title (e.g. Operation Chimera)" style="width: 100%; box-sizing: border-box; padding: 10px 12px; background: #0C1017; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; color: #E6E6E6; font-size: 13px; outline: none;" />
+      </div>
+
+      <!-- Identifiers Section -->
+      <div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <label style="font-size: 11px; text-transform: uppercase; color: #8A8D91; letter-spacing: 0.8px; font-weight: 600;">Target Identifiers <span style="color:#00F0FF;">*</span></label>
+          <button type="button" id="brief-add-id-btn" style="background: rgba(0, 240, 255, 0.1); border: 1px solid rgba(0, 240, 255, 0.3); color: #00F0FF; border-radius: 4px; padding: 4px 10px; font-size: 11px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px;">+ Add Identifier</button>
+        </div>
+        <div id="brief-identifiers-list" style="display: flex; flex-direction: column; gap: 8px;">
+          <!-- Dynamic Identifier Rows -->
+        </div>
+      </div>
+
+      <!-- Narrative & Context -->
+      <div>
+        <label style="display: block; font-size: 11px; text-transform: uppercase; color: #8A8D91; letter-spacing: 0.8px; margin-bottom: 6px; font-weight: 600;">Narrative & Context</label>
+        <textarea id="brief-narrative" rows="3" placeholder="Case narrative, background details, suspect activities, or reason for investigation..." style="width: 100%; box-sizing: border-box; padding: 10px 12px; background: #0C1017; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; color: #E6E6E6; font-size: 13px; line-height: 1.4; resize: vertical; outline: none;"></textarea>
+      </div>
+
+      <!-- Clues Grid: Location & Time frame -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div>
+          <label style="display: block; font-size: 11px; text-transform: uppercase; color: #8A8D91; letter-spacing: 0.8px; margin-bottom: 6px; font-weight: 600;">Location Clues</label>
+          <input type="text" id="brief-location-hints" placeholder="e.g. London UK, Berlin, Seattle" style="width: 100%; box-sizing: border-box; padding: 10px 12px; background: #0C1017; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; color: #E6E6E6; font-size: 13px; outline: none;" />
+        </div>
+        <div>
+          <label style="display: block; font-size: 11px; text-transform: uppercase; color: #8A8D91; letter-spacing: 0.8px; margin-bottom: 6px; font-weight: 600;">Time Frame</label>
+          <input type="text" id="brief-time-frame" placeholder="e.g. 2024-present, Oct 2026" style="width: 100%; box-sizing: border-box; padding: 10px 12px; background: #0C1017; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; color: #E6E6E6; font-size: 13px; outline: none;" />
+        </div>
+      </div>
+
+      <!-- Image Intake Zone -->
+      <div>
+        <label style="display: block; font-size: 11px; text-transform: uppercase; color: #8A8D91; letter-spacing: 0.8px; margin-bottom: 6px; font-weight: 600;">Reference Images (Max 4)</label>
+        <div id="brief-dropzone" style="border: 2px dashed rgba(255, 255, 255, 0.15); border-radius: 6px; padding: 16px; text-align: center; background: rgba(12, 16, 23, 0.6); cursor: pointer; transition: all 0.2s ease;">
+          <input type="file" id="brief-file-input" multiple accept="image/jpeg,image/png,image/webp" style="display:none;" />
+          <div style="color: #9CA3AF; font-size: 12px; pointer-events: none;">
+            <span>📸 Drag & drop photos, paste from clipboard (<kbd style="background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 3px;">Ctrl+V</kbd>), or click to browse</span>
+            <div style="font-size: 10.5px; color: #6B7280; margin-top: 4px;">JPEG, PNG, WEBP • Max 10MB each • Max 4 images</div>
+          </div>
+        </div>
+        <!-- Thumbnails Strip -->
+        <div id="brief-thumbnails" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-top: 10px;">
+          <!-- Dynamic Thumbnails with EXIF -->
+        </div>
+      </div>
+
+      <!-- Options -->
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <input type="checkbox" id="brief-switch-cold-room" checked style="accent-color: #00F0FF; cursor: pointer;" />
+        <label for="brief-switch-cold-room" style="color: #D1D5DB; font-size: 12px; cursor: pointer;">Switch to The Cold Room when started</label>
+      </div>
+
+      <!-- Inline Error Alert -->
+      <div id="brief-error-alert" style="display:none; padding: 10px 14px; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 6px; color: #F87171; font-size: 12.5px;"></div>
+
+      <!-- Conflict Resolution Box -->
+      <div id="brief-conflict-box" style="display:none; padding: 14px; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 6px;">
+        <div style="color: #FBBF24; font-weight: 600; font-size: 13px; margin-bottom: 6px;">Case Conflict: Case already exists on disk</div>
+        <div id="brief-conflict-summary" style="font-size: 12px; color: #D1D5DB; font-family: var(--mono); margin-bottom: 12px;"></div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button type="button" id="brief-conflict-open-btn" style="padding: 6px 12px; background: rgba(0, 240, 255, 0.15); border: 1px solid #00F0FF; border-radius: 4px; color: #00F0FF; font-size: 12px; cursor: pointer; font-weight: 600;">Open Existing Case</button>
+          <button type="button" id="brief-conflict-suffix-btn" style="padding: 6px 12px; background: rgba(245, 158, 11, 0.2); border: 1px solid #F59E0B; border-radius: 4px; color: #FBBF24; font-size: 12px; cursor: pointer; font-weight: 600;">Create New Case (<span id="brief-suggested-slug"></span>)</button>
+          <button type="button" id="brief-conflict-cancel-btn" style="padding: 6px 12px; background: transparent; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 4px; color: #9CA3AF; font-size: 12px; cursor: pointer;">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer Actions -->
+    <div class="overlay-foot" style="padding: 14px 20px; border-top: 1px solid rgba(255, 255, 255, 0.08); background: #0A0D12; display: flex; justify-content: flex-end; gap: 12px; align-items: center;">
+      <span style="font-size: 11px; color: #6B7280; margin-right: auto; font-family: var(--mono);">[Enter] Start • [Esc] Cancel</span>
+      <button type="button" id="brief-cancel-btn" style="padding: 8px 16px; background: transparent; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 6px; color: #9CA3AF; font-size: 13px; cursor: pointer;">Cancel</button>
+      <button type="button" id="brief-start-btn" style="padding: 8px 22px; background: rgba(0, 240, 255, 0.2); border: 1px solid #00F0FF; border-radius: 6px; color: #00F0FF; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px;">Start Investigation</button>
     </div>
   </div>
 </div>
@@ -7375,7 +7604,7 @@ function addInlineEvidenceCard(data) {
         <span class="lbl" style="color:#FFB84D;">📸 LIVE EVIDENCE SCREENSHOT GALLERY</span>
         <a onclick="openEvidenceOverlay()" style="color:#FF9D2E;">View All ↗</a>
       </div>
-      <div id="inline-evidence-grid" style="display:flex; gap:12px; overflow-x:auto; padding:6px 0;"></div>
+      <div id="inline-evidence-grid" class="inline-evidence-grid"></div>
     `;
     thread.appendChild(card);
     scrollThreadToBottom();
@@ -7386,12 +7615,11 @@ function addInlineEvidenceCard(data) {
     api().get_evidence_uri(shotPath).then(uri => {
       if (uri) {
         const itemDiv = document.createElement('div');
-        itemDiv.style.flex = '0 0 170px';
-        itemDiv.style.cursor = 'pointer';
+        itemDiv.className = 'inline-evidence-item';
         itemDiv.onclick = openEvidenceOverlay;
         itemDiv.innerHTML = `
-          <img src="${uri}" style="width:170px; height:100px; object-fit:cover; border-radius:6px; border:1px solid rgba(255, 255, 255, 0.08); transition:all 0.2s;" />
-          <div style="font-size:10px; color:#E6E6E6; font-family:var(--mono); margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+          <img src="${uri}" alt="Evidence Thumbnail" />
+          <div class="thumb-label">
             ${esc(data.value || data.platform || 'Screenshot')}
           </div>
         `;
@@ -7537,56 +7765,509 @@ if ($('#settings-overlay')) {
   });
 }
 
-/* ---------- Target Investigation Overlay JS ---------- */
-function openTargetDialog() {
-  const overlay = $('#target-dialog-overlay');
-  const input = $('#target-dialog-input');
-  if (overlay) {
-    overlay.classList.add('open');
-    overlay.style.display = 'flex';
-    if (input) {
-      input.value = '';
-      setTimeout(() => input.focus(), 100);
-    }
+/* ---------- Investigation Brief Overlay JS ---------- */
+let currentBriefSessionId = null;
+let currentBriefImages = [];
+let pendingCustomSlug = null;
+
+function showBriefError(msg) {
+  const errBox = document.getElementById('brief-error-alert');
+  if (errBox) {
+    errBox.textContent = msg;
+    errBox.style.display = 'block';
   }
-  const sidebar = document.getElementById('sidebar');
-  if (sidebar) { sidebar.classList.remove('expanded'); sidebar.classList.remove('open'); }
 }
 
-function closeTargetDialog() {
-  const overlay = $('#target-dialog-overlay');
+function hideBriefError() {
+  const errBox = document.getElementById('brief-error-alert');
+  if (errBox) {
+    errBox.textContent = '';
+    errBox.style.display = 'none';
+  }
+  const conflictBox = document.getElementById('brief-conflict-box');
+  if (conflictBox) {
+    conflictBox.style.display = 'none';
+  }
+}
+
+function showBriefConflict(conflictData) {
+  const conflictBox = document.getElementById('brief-conflict-box');
+  const summaryEl = document.getElementById('brief-conflict-summary');
+  const suggestedEl = document.getElementById('brief-suggested-slug');
+  if (!conflictBox) return;
+
+  const existing = conflictData.existing_case || {};
+  let sumText = `Target: ${existing.primary || conflictData.slug} • Type: ${existing.target_type || 'unknown'} • Risk: ${existing.risk_score || 0} • Entities: ${existing.entities_count || 0}`;
+  if (summaryEl) summaryEl.textContent = sumText;
+  if (suggestedEl) suggestedEl.textContent = conflictData.suggested_slug || (conflictData.slug + '-2');
+
+  conflictBox.style.display = 'block';
+
+  const openBtn = document.getElementById('brief-conflict-open-btn');
+  const suffixBtn = document.getElementById('brief-conflict-suffix-btn');
+  const cancelBtn = document.getElementById('brief-conflict-cancel-btn');
+
+  if (openBtn) {
+    openBtn.onclick = async () => {
+      if (api() && api().load_case) {
+        api().load_case(conflictData.slug);
+      } else if (api() && api().resume) {
+        api().resume(conflictData.slug);
+      }
+      closeInvestigationBrief(false);
+    };
+  }
+
+  if (suffixBtn) {
+    suffixBtn.onclick = () => {
+      pendingCustomSlug = conflictData.suggested_slug || (conflictData.slug + '-2');
+      conflictBox.style.display = 'none';
+      startBriefInvestigation();
+    };
+  }
+
+  if (cancelBtn) {
+    cancelBtn.onclick = () => {
+      conflictBox.style.display = 'none';
+    };
+  }
+}
+
+function renderBriefIdentifiers(items = []) {
+  const listEl = document.getElementById('brief-identifiers-list');
+  if (!listEl) return;
+  listEl.innerHTML = '';
+  if (!items || items.length === 0) {
+    items = [{ type: 'username', value: '', primary: true }];
+  }
+  items.forEach((item, idx) => {
+    addBriefIdentifierRow(item.type || 'username', item.value || '', item.primary || (idx === 0));
+  });
+}
+
+function addBriefIdentifierRow(type = 'username', val = '', isPrimary = false) {
+  const listEl = document.getElementById('brief-identifiers-list');
+  if (!listEl) return;
+  const row = document.createElement('div');
+  row.className = 'brief-id-row';
+  row.style.cssText = 'display: flex; gap: 8px; align-items: center;';
+  row.innerHTML = `
+    <select class="brief-id-type" style="padding: 8px 10px; background: #0C1017; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; color: #E6E6E6; font-size: 13px; outline: none; width: 125px;">
+      <option value="username"${type === 'username' ? ' selected' : ''}>Username</option>
+      <option value="email"${type === 'email' ? ' selected' : ''}>Email</option>
+      <option value="name"${type === 'name' ? ' selected' : ''}>Full Name</option>
+      <option value="domain"${type === 'domain' ? ' selected' : ''}>Domain</option>
+      <option value="ip"${type === 'ip' ? ' selected' : ''}>IP Address</option>
+      <option value="phone"${type === 'phone' ? ' selected' : ''}>Phone</option>
+    </select>
+    <input type="text" class="brief-id-val" placeholder="e.g. target_handle" value="${escapeHtml(val)}" style="flex: 1; padding: 8px 12px; background: #0C1017; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; color: #E6E6E6; font-size: 13px; font-family: var(--mono); outline: none;" />
+    <label style="display: flex; align-items: center; gap: 4px; color: #9CA3AF; font-size: 11px; cursor: pointer; user-select: none; white-space: nowrap;">
+      <input type="radio" name="brief-primary-radio" class="brief-id-primary" ${isPrimary ? 'checked' : ''} style="accent-color: #00F0FF;" />
+      Primary
+    </label>
+    <button type="button" class="brief-id-del" title="Remove" style="background: transparent; border: 1px solid rgba(239, 68, 68, 0.3); color: #EF4444; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 14px; line-height: 1;">×</button>
+  `;
+
+  row.querySelector('.brief-id-del').addEventListener('click', () => {
+    const allRows = listEl.querySelectorAll('.brief-id-row');
+    if (allRows.length > 1) {
+      const wasChecked = row.querySelector('.brief-id-primary').checked;
+      row.remove();
+      if (wasChecked) {
+        const firstRadio = listEl.querySelector('.brief-id-primary');
+        if (firstRadio) firstRadio.checked = true;
+      }
+    } else {
+      row.querySelector('.brief-id-val').value = '';
+    }
+  });
+
+  listEl.appendChild(row);
+}
+
+function renderBriefThumbnails() {
+  const container = document.getElementById('brief-thumbnails');
+  if (!container) return;
+  container.innerHTML = '';
+  const images = (window.currentBriefImages && window.currentBriefImages.length > 0) ? window.currentBriefImages : currentBriefImages;
+  images.forEach((item, idx) => {
+    const card = document.createElement('div');
+    card.className = 'brief-thumb-card';
+    card.style.cssText = 'position: relative; background: #0C1017; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; padding: 6px; display: flex; flex-direction: column; gap: 4px;';
+
+    let exifText = 'No EXIF metadata';
+    if (item.exif) {
+      const parts = [];
+      if (item.exif.has_gps && item.exif.gps) {
+        parts.push(`📍 ${item.exif.gps.lat?.toFixed(4)}, ${item.exif.gps.lon?.toFixed(4)}`);
+      }
+      if (item.exif.camera_make || item.exif.camera_model) {
+        parts.push(`📷 ${[item.exif.camera_make, item.exif.camera_model].filter(Boolean).join(' ')}`);
+      }
+      if (item.exif.timestamp) {
+        parts.push(`🕒 ${item.exif.timestamp}`);
+      }
+      if (parts.length > 0) exifText = parts.join('<br>');
+    }
+
+    const imgSrc = item.localUrl || item.data_url || (item.path && item.path.startsWith('data:') ? item.path : "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='130'%20height='74'%3E%3Crect%20fill='%230F172A'%20width='130'%20height='74'/%3E%3Ctext%20fill='%2300F0FF'%20x='65'%20y='42'%20text-anchor='middle'%20font-family='monospace'%20font-size='10'%3EEVIDENCE%20PHOTO%3C/text%3E%3C/svg%3E");
+    card.innerHTML = `
+      <div style="position: relative; width: 100%; height: 74px; overflow: hidden; border-radius: 4px; background: #000;">
+        <img src="${imgSrc}" style="width: 100%; height: 100%; object-fit: cover;" />
+        <button type="button" class="brief-thumb-del" data-index="${idx}" style="position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,0.75); border: none; color: #EF4444; width: 20px; height: 20px; border-radius: 50%; cursor: pointer; font-size: 13px; line-height: 1;">×</button>
+      </div>
+      <div style="font-size: 9px; color: #9CA3AF; font-family: var(--mono); line-height: 1.25; overflow: hidden; max-height: 38px;">
+        ${exifText}
+      </div>
+    `;
+
+    card.querySelector('.brief-thumb-del').addEventListener('click', () => {
+      currentBriefImages.splice(idx, 1);
+      renderBriefThumbnails();
+    });
+
+    container.appendChild(card);
+  });
+}
+
+async function uploadBriefFiles(fileList) {
+  if (!fileList || fileList.length === 0) return;
+  hideBriefError();
+
+  if (currentBriefImages.length + fileList.length > 4) {
+    showBriefError(`Maximum 4 images allowed (currently ${currentBriefImages.length}, attempting to add ${fileList.length}).`);
+    return;
+  }
+
+  if (!currentBriefSessionId) {
+    try {
+      if (api() && api().create_staging_session) {
+        const sRes = await api().create_staging_session();
+        if (sRes && sRes.success) currentBriefSessionId = sRes.session_id;
+      } else {
+        const resp = await fetch('/api/staging/create_session', { method: 'POST' });
+        const sRes = await resp.json();
+        if (sRes && sRes.success) currentBriefSessionId = sRes.session_id;
+      }
+    } catch(err) {
+      showBriefError('Failed to create upload staging session: ' + err.message);
+      return;
+    }
+  }
+
+  const formData = new FormData();
+  const validFiles = [];
+  for (let i = 0; i < fileList.length; i++) {
+    const f = fileList[i];
+    if (f.size > 10 * 1024 * 1024) {
+      showBriefError(`File ${f.name} exceeds 10MB limit.`);
+      return;
+    }
+    const lowerType = (f.type || '').toLowerCase();
+    const lowerName = (f.name || '').toLowerCase();
+    const isAllowed = lowerType.startsWith('image/jpeg') || lowerType.startsWith('image/png') || lowerType.startsWith('image/webp') ||
+                      lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg') || lowerName.endsWith('.png') || lowerName.endsWith('.webp');
+    if (!isAllowed) {
+      showBriefError(`File ${f.name} is not an allowed format (JPEG, PNG, WEBP only).`);
+      return;
+    }
+    formData.append(`file_${i}`, f);
+    validFiles.push(f);
+  }
+
+  if (validFiles.length === 0) return;
+
+  try {
+    const res = await fetch(`/api/staging/${currentBriefSessionId}/uploads`, {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    if (data.success && data.files) {
+      data.files.forEach((saved, idx) => {
+        const localBlobUrl = URL.createObjectURL(validFiles[idx]);
+        currentBriefImages.push({
+          filename: saved.filename,
+          path: saved.path,
+          exif: saved.exif,
+          localUrl: localBlobUrl
+        });
+      });
+      renderBriefThumbnails();
+    } else {
+      showBriefError(data.error || 'Failed to upload images');
+    }
+  } catch (err) {
+    showBriefError('Upload error: ' + (err.message || 'Network error'));
+  }
+}
+
+async function openInvestigationBrief(initData = {}) {
+  const overlay = document.getElementById('investigation-brief-overlay');
+  if (!overlay) return;
+
+  hideBriefError();
+  pendingCustomSlug = null;
+  currentBriefImages = [];
+  currentBriefSessionId = initData.session_id || null;
+
+  const titleInput = document.getElementById('brief-case-title');
+  if (titleInput) titleInput.value = initData.case_title || '';
+  const narrativeInput = document.getElementById('brief-narrative');
+  if (narrativeInput) narrativeInput.value = initData.narrative || '';
+  const locInput = document.getElementById('brief-location-hints');
+  if (locInput) locInput.value = initData.location_hints || '';
+  const timeInput = document.getElementById('brief-time-frame');
+  if (timeInput) timeInput.value = initData.time_frame || '';
+  const coldRoomCheck = document.getElementById('brief-switch-cold-room');
+  if (coldRoomCheck) coldRoomCheck.checked = true;
+
+  const voiceBanner = document.getElementById('brief-voice-banner');
+  const voiceText = document.getElementById('brief-voice-text');
+  if (initData.source === 'voice' && initData.transcript) {
+    if (voiceText) voiceText.textContent = initData.transcript;
+    if (voiceBanner) voiceBanner.style.display = 'flex';
+  } else {
+    if (voiceBanner) voiceBanner.style.display = 'none';
+  }
+
+  const initialIdentifiers = [];
+  if (initData.identifiers && Array.isArray(initData.identifiers)) {
+    initialIdentifiers.push(...initData.identifiers);
+  } else if (initData.target) {
+    initialIdentifiers.push({
+      type: initData.target_type || 'username',
+      value: initData.target,
+      primary: true
+    });
+  }
+  renderBriefIdentifiers(initialIdentifiers);
+  renderBriefThumbnails();
+
+  if (!currentBriefSessionId) {
+    try {
+      if (api() && api().create_staging_session) {
+        const sRes = await api().create_staging_session();
+        if (sRes && sRes.success) currentBriefSessionId = sRes.session_id;
+      } else {
+        fetch('/api/staging/create_session', { method: 'POST' })
+          .then(r => r.json())
+          .then(d => { if (d && d.success) currentBriefSessionId = d.session_id; })
+          .catch(()=>{});
+      }
+    } catch(e){}
+  }
+
+  overlay.classList.add('open');
+  overlay.style.display = 'flex';
+
+  setTimeout(() => {
+    const firstInput = overlay.querySelector('.brief-id-val') || titleInput;
+    if (firstInput) firstInput.focus();
+  }, 100);
+}
+
+function closeInvestigationBrief(cancelStaging = true) {
+  const overlay = document.getElementById('investigation-brief-overlay');
   if (overlay) {
     overlay.classList.remove('open');
     overlay.style.display = 'none';
   }
+
+  if (cancelStaging && currentBriefSessionId) {
+    const sid = currentBriefSessionId;
+    if (api() && api().cancel_staging_session) {
+      api().cancel_staging_session(sid).catch(()=>{});
+    } else {
+      fetch(`/api/staging/${sid}/cancel`, { method: 'POST' }).catch(()=>{});
+    }
+  }
+
+  currentBriefSessionId = null;
+  currentBriefImages = [];
+  pendingCustomSlug = null;
+  hideBriefError();
 }
 
-function submitTargetDialog() {
-  const input = $('#target-dialog-input');
-  const val = input ? input.value.trim() : '';
-  if (val) {
-    closeTargetDialog();
-    if (window.ColdRoom) {
-      ColdRoom.reset();
-      ColdRoom.setTarget(val);
-      ColdRoom.setStatus('INITIALIZING INVESTIGATION...', true);
+async function startBriefInvestigation() {
+  hideBriefError();
+  const idRows = document.querySelectorAll('.brief-id-row');
+  const identifiers = [];
+  idRows.forEach(row => {
+    const type = row.querySelector('.brief-id-type').value;
+    const value = row.querySelector('.brief-id-val').value.trim();
+    const isPrimary = row.querySelector('.brief-id-primary').checked;
+    if (value) {
+      identifiers.push({ type, value, primary: isPrimary });
     }
-    if (window.glideToSpatial) {
-      window.glideToSpatial(-950);
+  });
+
+  if (identifiers.length === 0) {
+    showBriefError('At least one target identifier is required.');
+    return;
+  }
+
+  if (!identifiers.some(i => i.primary)) {
+    identifiers[0].primary = true;
+  }
+
+  const caseTitle = document.getElementById('brief-case-title')?.value.trim() || '';
+  const narrative = document.getElementById('brief-narrative')?.value.trim() || '';
+  const locationHints = document.getElementById('brief-location-hints')?.value.trim() || '';
+  const timeFrame = document.getElementById('brief-time-frame')?.value.trim() || '';
+  const switchToColdRoom = document.getElementById('brief-switch-cold-room')?.checked ?? true;
+
+  const payload = {
+    session_id: currentBriefSessionId,
+    case_title: caseTitle,
+    identifiers: identifiers,
+    narrative: narrative,
+    location_hints: locationHints,
+    time_frame: timeFrame,
+    custom_slug: pendingCustomSlug || null,
+    open_existing: false,
+    switch_to_cold_room: switchToColdRoom
+  };
+
+  const startBtn = document.getElementById('brief-start-btn');
+  if (startBtn) {
+    startBtn.disabled = true;
+    startBtn.textContent = 'Starting...';
+  }
+
+  try {
+    let resData;
+    if (api() && api().start_brief_investigation) {
+      resData = await api().start_brief_investigation(payload);
+    } else {
+      const resp = await fetch('/api/cases/start_brief', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      resData = await resp.json();
     }
-    const query = `investigate ${val}`;
-    $('#chat-input').value = query;
-    handleSend();
+
+    if (resData.conflict) {
+      showBriefConflict(resData);
+      if (startBtn) {
+        startBtn.disabled = false;
+        startBtn.textContent = 'Start Investigation';
+      }
+      return;
+    }
+
+    if (resData.success) {
+      closeInvestigationBrief(false);
+    } else {
+      showBriefError(resData.error || 'Failed to start investigation');
+      if (startBtn) {
+        startBtn.disabled = false;
+        startBtn.textContent = 'Start Investigation';
+      }
+    }
+  } catch (err) {
+    showBriefError('Error: ' + (err.message || 'Request failed'));
+    if (startBtn) {
+      startBtn.disabled = false;
+      startBtn.textContent = 'Start Investigation';
+    }
   }
 }
 
-if ($('#target-dialog-close')) $('#target-dialog-close').addEventListener('click', closeTargetDialog);
-if ($('#target-dialog-cancel')) $('#target-dialog-cancel').addEventListener('click', closeTargetDialog);
-if ($('#target-dialog-submit')) $('#target-dialog-submit').addEventListener('click', submitTargetDialog);
-if ($('#target-dialog-input')) {
-  $('#target-dialog-input').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') submitTargetDialog();
+// Wire modal event listeners
+const briefOverlayElem = document.getElementById('investigation-brief-overlay');
+if (briefOverlayElem) {
+  document.getElementById('brief-close-btn')?.addEventListener('click', () => closeInvestigationBrief(true));
+  document.getElementById('brief-cancel-btn')?.addEventListener('click', () => closeInvestigationBrief(true));
+  document.getElementById('brief-start-btn')?.addEventListener('click', startBriefInvestigation);
+  document.getElementById('brief-add-id-btn')?.addEventListener('click', () => addBriefIdentifierRow('username', '', false));
+
+  const dropzone = document.getElementById('brief-dropzone');
+  const fileInput = document.getElementById('brief-file-input');
+  if (dropzone) {
+    dropzone.addEventListener('click', () => fileInput && fileInput.click());
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.style.borderColor = '#00F0FF';
+      dropzone.style.background = 'rgba(0, 240, 255, 0.08)';
+    });
+    dropzone.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      dropzone.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+      dropzone.style.background = 'rgba(12, 16, 23, 0.6)';
+    });
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+      dropzone.style.background = 'rgba(12, 16, 23, 0.6)';
+      if (e.dataTransfer && e.dataTransfer.files) {
+        uploadBriefFiles(e.dataTransfer.files);
+      }
+    });
+  }
+  if (fileInput) {
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files) uploadBriefFiles(e.target.files);
+    });
+  }
+
+  window.addEventListener('keydown', (e) => {
+    if (briefOverlayElem.classList.contains('open')) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeInvestigationBrief(true);
+      } else if (e.key === 'Enter') {
+        if (document.activeElement && document.activeElement.tagName === 'TEXTAREA') {
+          if (e.ctrlKey) {
+            e.preventDefault();
+            startBriefInvestigation();
+          }
+        } else {
+          e.preventDefault();
+          startBriefInvestigation();
+        }
+      }
+    }
   });
+
+  window.addEventListener('paste', (e) => {
+    if (briefOverlayElem.classList.contains('open')) {
+      const items = (e.clipboardData || window.clipboardData)?.items;
+      if (items) {
+        const imageFiles = [];
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].type && items[i].type.indexOf('image') === 0) {
+            const blob = items[i].getAsFile();
+            if (blob) imageFiles.push(blob);
+          }
+        }
+        if (imageFiles.length > 0) {
+          e.preventDefault();
+          uploadBriefFiles(imageFiles);
+        }
+      }
+    }
+  });
+}
+
+window.openInvestigationBrief = openInvestigationBrief;
+window.closeInvestigationBrief = closeInvestigationBrief;
+window.renderBriefIdentifiers = renderBriefIdentifiers;
+window.addBriefIdentifierRow = addBriefIdentifierRow;
+window.renderBriefThumbnails = renderBriefThumbnails;
+
+/* ---------- Target Investigation Overlay JS ---------- */
+function openTargetDialog(target, targetType) {
+  openInvestigationBrief({ target: target || '', target_type: targetType || 'username' });
+}
+
+function closeTargetDialog() {
+  closeInvestigationBrief(true);
+}
+
+function submitTargetDialog() {
+  startBriefInvestigation();
 }
 
 /* ---------- Tasks Overlay JS ---------- */
@@ -8098,7 +8779,7 @@ window.setOperatorSalutation = function(sal) {
 let lastSendTime = 0;
 let lastSentText = '';
 
-function handleSend() {
+function handleSend(source = 'typed') {
   resetJarvisAudioQueue();
   const input = $('#chat-input');
   const text = input.value.trim();
@@ -8249,7 +8930,7 @@ function handleSend() {
 
     try {
       if (api() && api().process_input) {
-        api().process_input(text, window._lastMsgSubmitEpoch);
+        api().process_input(text, window._lastMsgSubmitEpoch, source);
       } else if (api() && api().smart_stalk) {
         api().smart_stalk(text);
       } else if (api() && api().ask) {
@@ -11371,7 +12052,7 @@ async function startMicListening() {
               if (text) {
                 $('#chat-input').value = text;
                 clearStatusLines();
-                handleSend();
+                handleSend('voice');
               }
             } else if (res && res.error) {
               addStatusLine(`Audio transcription: ${res.error}`);
@@ -11456,7 +12137,7 @@ async function stopMicListening(aborted = false) {
         if (text) {
           $('#chat-input').value = text;
           clearStatusLines();
-          handleSend();
+          handleSend('voice');
         }
       } else if (res && res.error) {
         addStatusLine(`Voice input: ${res.error}`);
@@ -13888,13 +14569,17 @@ window.jarvis = window.joe = {
           if (cleanText && (cleanText !== lastSentText || (now - lastSendTime) >= 2000)) {
             setHudState('thinking');
             $('#chat-input').value = cleanText;
-            handleSend();
+            handleSend('voice');
           }
         }
         break;
 
+      case 'open_investigation_brief':
+        openInvestigationBrief(data);
+        break;
+
       case 'open_investigate_dialog':
-        openTargetDialog();
+        openInvestigationBrief(data);
         break;
 
       case 'scan_status':
@@ -14937,12 +15622,14 @@ function latLonToVector3(lat, lon, radius) {
 // SCREEN 1: THE COLD ROOM (OSINT TOPOLOGY GRAPH & CONTROLLER)
 // ─────────────────────────────────────────────────────────────
 const ColdRoomGraph = {
+  // Mode configuration: '3d' (default) or '2d'
+  mode: '3d',
+  _storageKey: 'jarvis_cr_graph_mode',
+
+  // 2D Canvas State
   canvas: null,
   ctx: null,
   container: null,
-  nodes: [],
-  links: [],
-  targetNode: null,
   panX: 0,
   panY: 0,
   zoom: 1.0,
@@ -14950,80 +15637,440 @@ const ColdRoomGraph = {
   dragStartX: 0,
   dragStartY: 0,
   hoveredNode: null,
-  selectedNode: null,
   animId: null,
   pulseTime: 0,
+  _running2D: false,
+
+  // 3D ForceGraph State
+  mount3d: null,
+  graph3d: null,
+  _labelSprites: [],
+  _lastClickedNode: null,
+  _lastClickTime: 0,
+  _idleDisposalTimer: null,
+  _isDisposed: false,
+
+  // Topology Data & Selection
+  nodes: [],
+  links: [],
+  targetNode: null,
+  selectedNode: null,
+  filterCategory: 'all',
+  searchQuery: '',
   _initialized: false,
 
   init() {
     if (this._initialized) return;
     this.container = document.getElementById('cr-graph-container');
     this.canvas = document.getElementById('cr-graph-canvas');
-    if (!this.canvas || !this.container) return;
-    this.ctx = this.canvas.getContext('2d');
+    this.mount3d = document.getElementById('cr-graph-3d');
+    if (!this.container) return;
+
+    if (this.canvas) {
+      this.ctx = this.canvas.getContext('2d');
+    }
+
+    // Read stored mode preference (default 3D)
+    let savedMode = null;
+    try {
+      savedMode = window.safeStorageGet ? window.safeStorageGet(this._storageKey) : localStorage.getItem(this._storageKey);
+    } catch (_) {
+      savedMode = null;
+    }
+    this.mode = (savedMode === '2d') ? '2d' : '3d';
+
     this._initialized = true;
-    this.resize();
+    this._updateModeButton();
 
-    window.addEventListener('resize', () => this.resize());
-
-    // Canvas pointer interaction (Pan & Select)
-    this.canvas.addEventListener('pointerdown', (e) => {
-      const rect = this.canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      const mx = (e.clientX - rect.left - (this.canvas.width / (2 * dpr)) - this.panX) / this.zoom;
-      const my = (e.clientY - rect.top - (this.canvas.height / (2 * dpr)) - this.panY) / this.zoom;
-      const hit = this.findNodeAt(mx, my);
-      if (hit) {
-        this.selectedNode = hit;
-        if (hit.data && window.ColdRoom) {
-          ColdRoom.selectEntity(hit.data);
-        }
-      } else {
-        this.isDragging = true;
-        this.dragStartX = e.clientX - this.panX;
-        this.dragStartY = e.clientY - this.panY;
+    window.addEventListener('resize', () => {
+      if (this.mode === '2d') {
+        this.resize();
+      } else if (this.graph3d && this.container) {
+        this.graph3d.width(this.container.clientWidth);
+        this.graph3d.height(this.container.clientHeight);
       }
     });
 
-    window.addEventListener('pointermove', (e) => {
-      if (this.isDragging) {
-        this.panX = e.clientX - this.dragStartX;
-        this.panY = e.clientY - this.dragStartY;
-      } else if (this.canvas) {
+    // 2D Canvas pointer interactions (Pan, Select, Zoom)
+    if (this.canvas) {
+      this.canvas.addEventListener('pointerdown', (e) => {
+        if (this.mode !== '2d') return;
         const rect = this.canvas.getBoundingClientRect();
-        if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
-          const dpr = window.devicePixelRatio || 1;
-          const mx = (e.clientX - rect.left - (this.canvas.width / (2 * dpr)) - this.panX) / this.zoom;
-          const my = (e.clientY - rect.top - (this.canvas.height / (2 * dpr)) - this.panY) / this.zoom;
-          this.hoveredNode = this.findNodeAt(mx, my);
-          this.canvas.style.cursor = this.hoveredNode ? 'pointer' : 'default';
+        const dpr = window.devicePixelRatio || 1;
+        const mx = (e.clientX - rect.left - (this.canvas.width / (2 * dpr)) - this.panX) / this.zoom;
+        const my = (e.clientY - rect.top - (this.canvas.height / (2 * dpr)) - this.panY) / this.zoom;
+        const hit = this.findNodeAt(mx, my);
+        if (hit) {
+          this.selectNode(hit);
+        } else {
+          this.isDragging = true;
+          this.dragStartX = e.clientX - this.panX;
+          this.dragStartY = e.clientY - this.panY;
         }
+      });
+
+      window.addEventListener('pointermove', (e) => {
+        if (this.mode !== '2d') return;
+        if (this.isDragging) {
+          this.panX = e.clientX - this.dragStartX;
+          this.panY = e.clientY - this.dragStartY;
+        } else if (this.canvas) {
+          const rect = this.canvas.getBoundingClientRect();
+          if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+            const dpr = window.devicePixelRatio || 1;
+            const mx = (e.clientX - rect.left - (this.canvas.width / (2 * dpr)) - this.panX) / this.zoom;
+            const my = (e.clientY - rect.top - (this.canvas.height / (2 * dpr)) - this.panY) / this.zoom;
+            this.hoveredNode = this.findNodeAt(mx, my);
+            this.canvas.style.cursor = this.hoveredNode ? 'pointer' : 'default';
+          }
+        }
+      });
+
+      window.addEventListener('pointerup', () => {
+        this.isDragging = false;
+      });
+
+      this.canvas.addEventListener('wheel', (e) => {
+        if (this.mode !== '2d') return;
+        e.preventDefault();
+        const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
+        this.zoom = Math.max(0.35, Math.min(3.0, this.zoom * zoomFactor));
+      }, { passive: false });
+    }
+
+    // Lazy initialization: only instantiate WebGL if currently on Screen 1
+    const isOnColdRoomScreen = (typeof SpatialNav !== 'undefined') ? (SpatialNav.currentX <= -400) : true;
+    if (this.mode === '3d') {
+      if (this.canvas) this.canvas.style.display = 'none';
+      if (this.mount3d) this.mount3d.style.display = 'block';
+      if (isOnColdRoomScreen) {
+        this._init3D();
       }
-    });
-
-    window.addEventListener('pointerup', () => {
-      this.isDragging = false;
-    });
-
-    this.canvas.addEventListener('wheel', (e) => {
-      e.preventDefault();
-      const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
-      this.zoom = Math.max(0.35, Math.min(3.0, this.zoom * zoomFactor));
-    }, { passive: false });
-
-    this.startLoop();
+    } else {
+      if (this.mount3d) this.mount3d.style.display = 'none';
+      if (this.canvas) this.canvas.style.display = 'block';
+      this.resize();
+      if (isOnColdRoomScreen) {
+        this.startLoop();
+      }
+    }
   },
 
-  resize() {
-    if (!this.canvas || !this.container) return;
-    const dpr = window.devicePixelRatio || 1;
-    const w = this.container.clientWidth;
-    const h = this.container.clientHeight;
-    if (w === 0 || h === 0) return;
-    this.canvas.width = w * dpr;
-    this.canvas.height = h * dpr;
-    this.canvas.style.width = w + 'px';
-    this.canvas.style.height = h + 'px';
+  _updateModeButton() {
+    const btn = document.getElementById('cr-mode-toggle');
+    if (btn) {
+      btn.textContent = this.mode.toUpperCase();
+      btn.title = `Current mode: ${this.mode.toUpperCase()} (Click to switch to ${this.mode === '3d' ? '2D' : '3D'})`;
+    }
+  },
+
+  toggleMode() {
+    this.setMode(this.mode === '3d' ? '2d' : '3d');
+  },
+
+  setMode(targetMode) {
+    this.mode = (targetMode === '2d') ? '2d' : '3d';
+    try {
+      if (window.safeStorageSet) {
+        window.safeStorageSet(this._storageKey, this.mode);
+      } else {
+        localStorage.setItem(this._storageKey, this.mode);
+      }
+    } catch (_) {}
+
+    this._updateModeButton();
+
+    if (this.mode === '3d') {
+      this.pause2D();
+      if (this.canvas) this.canvas.style.display = 'none';
+      if (this.mount3d) this.mount3d.style.display = 'block';
+      if (!this.graph3d) {
+        this._init3D();
+      } else {
+        this.graph3d.resumeAnimation();
+        this.update3DData(false);
+      }
+    } else {
+      if (this.graph3d) {
+        this.graph3d.pauseAnimation();
+      }
+      if (this.mount3d) this.mount3d.style.display = 'none';
+      if (this.canvas) this.canvas.style.display = 'block';
+      this.resize();
+      this.startLoop();
+    }
+  },
+
+  _init3D() {
+    if (this.graph3d) return;
+    if (typeof ForceGraph3D === 'undefined' || typeof THREE === 'undefined') {
+      console.warn('[ColdRoomGraph] ForceGraph3D or THREE library missing, falling back to 2D.');
+      this.showNotice('3D graphics library unavailable. Running 2D canvas mode.');
+      this.setMode('2d');
+      return;
+    }
+
+    this.mount3d = document.getElementById('cr-graph-3d');
+    if (!this.mount3d) return;
+
+    try {
+      const w = this.container ? (this.container.clientWidth || 600) : 600;
+      const h = this.container ? (this.container.clientHeight || 400) : 400;
+
+      // Ensure mount container is cleared before mounting ForceGraph3D
+      this.mount3d.innerHTML = '';
+
+      this.graph3d = ForceGraph3D({ controlType: 'orbit' })(this.mount3d)
+        .backgroundColor('rgba(0,0,0,0)')
+        .showNavInfo(false)
+        .width(w)
+        .height(h)
+        .cooldownTicks(60)
+        .cooldownTime(2000)
+        .warmupTicks(0)
+        .nodeVal(node => (node.val != null ? node.val : 4.0))
+        .nodeColor(node => (node.color || '#38BDF8'))
+        .nodeOpacity(node => this._getNodeOpacity(node))
+        .nodeResolution(16)
+        .nodeLabel(node => this._getNodeTooltipHtml(node))
+        .linkDirectionalParticles(link => (this._isLinkConnectedToSelected(link) ? 3 : 0))
+        .linkDirectionalParticleWidth(link => (this._isLinkConnectedToSelected(link) ? 2.5 : 0))
+        .linkDirectionalParticleSpeed(0.008)
+        .linkColor(link => (this._isLinkConnectedToSelected(link) ? '#00F0FF' : 'rgba(0, 240, 255, 0.22)'))
+        .linkWidth(link => (this._isLinkConnectedToSelected(link) ? 2.0 : 1.0))
+        .linkLabel(link => this._getLinkTooltipHtml(link))
+        .onNodeClick((node) => {
+          const now = performance.now();
+          const isDbl = (this._lastClickedNode === node && (now - this._lastClickTime) < 350);
+          this._lastClickedNode = node;
+          this._lastClickTime = now;
+          if (isDbl) {
+            this.focusCameraOnNode(node);
+          } else {
+            this.selectNode(node);
+          }
+        })
+        .onBackgroundClick(() => {
+          this.selectedNode = null;
+          this._clearLabelSprites();
+          if (this.graph3d) this.graph3d.refresh();
+        });
+
+      // Dedicated Three.js Group for dynamic selected-node and neighbor label sprites
+      const scene = this.graph3d.scene();
+      if (scene && typeof THREE !== 'undefined') {
+        this._labelGroup = new THREE.Group();
+        scene.add(this._labelGroup);
+      }
+
+      // Default camera view
+      this.graph3d.cameraPosition({ x: 0, y: 0, z: 280 }, { x: 0, y: 0, z: 0 }, 0);
+
+      // Handle WebGL context loss safely
+      const canvasEl = this.mount3d.querySelector('canvas');
+      if (canvasEl) {
+        canvasEl.addEventListener('webglcontextlost', (e) => {
+          e.preventDefault();
+          console.warn('[ColdRoomGraph] WebGL context lost. Falling back to 2D.');
+          this.showNotice('WebGL context lost. Switched to 2D fallback.');
+          this.setMode('2d');
+        });
+      }
+
+      this._isDisposed = false;
+      this.update3DData(false);
+    } catch (err) {
+      console.warn('[ColdRoomGraph] WebGL init error, falling back to 2D:', err);
+      this.showNotice('WebGL initialization failed. Running 2D canvas mode.');
+      this.setMode('2d');
+    }
+  },
+
+  _isNeighborOfSelected(node) {
+    if (!this.selectedNode || !node) return false;
+    const selId = this.selectedNode.id;
+    const targetId = node.id;
+    for (const link of this.links) {
+      const sId = typeof link.source === 'object' ? link.source.id : link.source;
+      const tId = typeof link.target === 'object' ? link.target.id : link.target;
+      if ((sId === selId && tId === targetId) || (sId === targetId && tId === selId)) {
+        return true;
+      }
+    }
+    return false;
+  },
+
+  _isLinkConnectedToSelected(link) {
+    if (!this.selectedNode || !link) return false;
+    const selId = this.selectedNode.id;
+    const sId = typeof link.source === 'object' ? link.source.id : link.source;
+    const tId = typeof link.target === 'object' ? link.target.id : link.target;
+    return (sId === selId || tId === selId);
+  },
+
+  _updateLabelSprites() {
+    this._clearLabelSprites();
+    if (!this.selectedNode || !this._labelGroup) return;
+
+    // Selected node label sprite
+    this._createLabelSprite(this.selectedNode, true);
+
+    // 1-hop neighbor label sprites
+    for (const node of this.nodes) {
+      if (node !== this.selectedNode && this._isNeighborOfSelected(node)) {
+        this._createLabelSprite(node, false);
+      }
+    }
+  },
+
+  _createLabelSprite(node, isSelected = false) {
+    if (typeof THREE === 'undefined' || !this._labelGroup) return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'rgba(7, 11, 16, 0.90)';
+    ctx.fillRect(0, 0, 256, 64);
+    ctx.strokeStyle = isSelected ? '#FFFFFF' : (node.color || '#00F0FF');
+    ctx.lineWidth = 2.5;
+    ctx.strokeRect(0, 0, 256, 64);
+
+    ctx.font = isSelected ? 'bold 22px "JetBrains Mono", monospace' : '20px "JetBrains Mono", monospace';
+    ctx.fillStyle = isSelected ? '#FFFFFF' : '#D1D5DB';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const text = node.label || node.fullLabel || '';
+    ctx.fillText(text.length > 18 ? text.substring(0, 16) + '..' : text, 128, 32);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    const material = new THREE.SpriteMaterial({ map: texture, depthWrite: false, transparent: true });
+    const sprite = new THREE.Sprite(material);
+    sprite.scale.set(30, 7.5, 1);
+    const nx = typeof node.x === 'number' ? node.x : 0;
+    const ny = typeof node.y === 'number' ? node.y : 0;
+    const nz = typeof node.z === 'number' ? node.z : 0;
+    sprite.position.set(nx, ny + (node.val || 4) + 6, nz);
+
+    this._labelGroup.add(sprite);
+    this._labelSprites.push(sprite);
+    if (typeof window.__liveLabelTextureCount === 'number') {
+      window.__liveLabelTextureCount++;
+    }
+    return sprite;
+  },
+
+  _clearLabelSprites() {
+    if (!this._labelSprites) return;
+    for (const sprite of this._labelSprites) {
+      if (sprite.parent) sprite.parent.remove(sprite);
+      if (sprite.material) {
+        if (sprite.material.map) {
+          try { sprite.material.map.dispose(); } catch (_) {}
+          if (typeof window.__liveLabelTextureCount === 'number') {
+            window.__liveLabelTextureCount--;
+          }
+        }
+        try { sprite.material.dispose(); } catch (_) {}
+      }
+    }
+    this._labelSprites = [];
+  },
+
+  _getNodeOpacity(node) {
+    // 1. Filter and search dimming
+    if (!this._matchesFilterAndSearch(node)) {
+      return 0.08;
+    }
+    // 2. Dimming Rule (Amendment 2):
+    // Dim ONLY when verified === null explicitly OR metadata.status === 'unverified'
+    // Do NOT dim entities where verified is undefined (emails, domains, breaches, IPs)
+    const d = node.data || {};
+    const isUnverifiedExplicit = (d.verified === null || (d.metadata && d.metadata.status === 'unverified') || d.status === 'unverified');
+    if (isUnverifiedExplicit) {
+      return 0.35;
+    }
+    return 0.95;
+  },
+
+  _matchesFilterAndSearch(node) {
+    if (node === this.targetNode) return true;
+    const cat = this.filterCategory || 'all';
+    const query = this.searchQuery || '';
+    const nodeType = (node.type || '').toLowerCase();
+    const nodeText = (node.fullLabel || node.label || '').toLowerCase();
+    const data = node.data || {};
+
+    let matchesCat = false;
+    if (cat === 'all') {
+      matchesCat = true;
+    } else if (cat === 'critical') {
+      matchesCat = (data.risk >= 0.7) || nodeType.includes('cred') || nodeType.includes('breach') || nodeType.includes('pass') || nodeType.includes('leak');
+    } else if (cat === 'domains') {
+      matchesCat = nodeType.includes('domain') || nodeType.includes('ip') || nodeType.includes('host') || nodeType.includes('dns') || nodeType.includes('network');
+    } else if (cat === 'credentials') {
+      matchesCat = nodeType.includes('cred') || nodeType.includes('email') || nodeType.includes('pass') || nodeType.includes('breach') || nodeType.includes('leak');
+    } else if (cat === 'accounts') {
+      matchesCat = nodeType.includes('user') || nodeType.includes('handle') || nodeType.includes('social') || nodeType.includes('profile') || nodeType.includes('account');
+    } else if (cat === 'geo') {
+      matchesCat = nodeType.includes('location') || nodeType.includes('geo') || nodeType.includes('city') || nodeType.includes('country') || nodeType.includes('coord');
+    }
+
+    const matchesSearch = !query || nodeText.includes(query) || nodeType.includes(query);
+    return matchesCat && matchesSearch;
+  },
+
+  _getNodeTooltipHtml(node) {
+    const val = this._escapeHtml(node.fullLabel || node.label || 'Entity');
+    const type = this._escapeHtml(node.type || 'ENTITY');
+    const conf = Math.round((node.confidence != null ? node.confidence : 0.5) * 100);
+    const d = node.data || {};
+    let statusText = 'UNCHECKED';
+    let statusColor = '#38BDF8';
+    if (d.verified === true) {
+      statusText = 'VERIFIED';
+      statusColor = '#10B981';
+    } else if (d.verified === null || (d.metadata && d.metadata.status === 'unverified')) {
+      statusText = 'INCONCLUSIVE';
+      statusColor = '#F59E0B';
+    }
+
+    return `
+      <div style="background:rgba(7,11,16,0.92); border:1px solid ${node.color || '#00F0FF'}; border-radius:4px; padding:6px 10px; font-family:'JetBrains Mono',monospace; font-size:11px; line-height:1.4; color:#FFF; box-shadow:0 0 12px rgba(0,240,255,0.25); max-width:260px; pointer-events:none;">
+        <div style="color:${node.color || '#00F0FF'}; font-weight:800; font-size:10px; letter-spacing:0.5px; margin-bottom:2px;">${type}</div>
+        <div style="font-weight:700; word-break:break-all; margin-bottom:4px;">${val}</div>
+        <div style="display:flex; justify-content:space-between; gap:10px; font-size:9.5px; color:#9CA3AF; border-top:1px solid rgba(255,255,255,0.1); padding-top:4px;">
+          <span>CONF: <b style="color:#FFF;">${conf}%</b></span>
+          <span style="color:${statusColor}; font-weight:700;">${statusText}</span>
+        </div>
+      </div>
+    `;
+  },
+
+  _getLinkTooltipHtml(link) {
+    const label = this._escapeHtml(link.label || 'CORRELATED_TO');
+    const relType = this._escapeHtml(link.relType || 'LINK');
+    const entityTypeBadge = link.entityType ? ` <span style="color:#F59E0B; font-size:8.5px;">[${this._escapeHtml(link.entityType)}]</span>` : '';
+    return `
+      <div style="background:rgba(7,11,16,0.92); border:1px solid rgba(0,240,255,0.4); border-radius:3px; padding:3px 7px; font-family:'JetBrains Mono',monospace; font-size:10px; color:#00F0FF; pointer-events:none;">
+        <span style="color:#9CA3AF; font-size:8.5px;">${relType}:</span> ${label}${entityTypeBadge}
+      </div>
+    `;
+  },
+
+  _escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  },
+
+  showNotice(msg) {
+    const el = document.getElementById('cr-graph-notice');
+    if (!el) return;
+    el.textContent = msg;
+    el.style.display = 'block';
+    setTimeout(() => {
+      if (el) el.style.display = 'none';
+    }, 4500);
   },
 
   setTarget(targetName) {
@@ -15031,53 +16078,68 @@ const ColdRoomGraph = {
     this.targetNode = {
       id: '__TARGET__',
       label: (targetName || 'TARGET').toUpperCase(),
+      fullLabel: targetName || 'TARGET',
       type: 'TARGET',
       color: '#FF9D2E',
       radius: 20,
+      val: 9.0,
+      confidence: 1.0,
+      dimmed: false,
       x: 0,
       y: 0,
+      z: 0,
       vx: 0,
       vy: 0,
       fixed: true,
       data: { type: 'TARGET', value: targetName, confidence: 1.0, source: 'Primary Case Target' }
     };
     this.nodes.push(this.targetNode);
+
+    if (this.mode === '3d' && this.graph3d) {
+      this.update3DData(false);
+    }
   },
 
   addEntity(data) {
+    if (!data) return;
+
+    // Filter out rejected entities (rejected entities must never be shown)
+    const isRejected = (data.verified === false || data.status === 'rejected' || (data.metadata && data.metadata.status === 'rejected'));
+    if (isRejected) {
+      return;
+    }
+
     const val = String(data.value || data.text || data.name || data.id || 'Entity');
-    const id = 'node_' + this.nodes.length + '_' + Math.random().toString(36).substr(2, 4);
+    const id = 'node_' + (this.nodes.length + 1) + '_' + Math.random().toString(36).substr(2, 4);
     const type = String(data.type || data.category || 'entity').toLowerCase();
 
     let color = '#38BDF8';
     let clusterAngle = 0;
-    let relLabel = 'CORRELATED_TO';
 
     if (type.includes('email') || type.includes('cred') || type.includes('pass') || type.includes('breach')) {
       color = '#EF4444';
       clusterAngle = -Math.PI * 0.25; // Northeast
-      relLabel = 'BREACHED_IN';
     } else if (type.includes('domain') || type.includes('ip') || type.includes('host') || type.includes('network')) {
       color = '#10B981';
       clusterAngle = -Math.PI * 0.75; // Northwest
-      relLabel = type.includes('ip') ? 'HOSTED_ON' : 'RESOLVES_TO';
     } else if (type.includes('crypto') || type.includes('btc') || type.includes('eth') || type.includes('wallet')) {
       color = '#F59E0B';
       clusterAngle = -Math.PI * 0.5;
-      relLabel = 'WALLET_ADDR';
     } else if (type.includes('phone') || type.includes('contact')) {
       color = '#EC4899';
       clusterAngle = Math.PI * 0.15;
-      relLabel = 'CONTACT_OF';
     } else if (type.includes('location') || type.includes('geo') || type.includes('city') || type.includes('country')) {
       color = '#A855F7';
       clusterAngle = Math.PI * 0.35; // Southeast
-      relLabel = 'LOCATED_AT';
     } else if (type.includes('user') || type.includes('handle') || type.includes('profile')) {
       color = '#00F0FF';
       clusterAngle = Math.PI * 0.75; // Southwest
-      relLabel = 'ACCOUNT_OF';
     }
+
+    const conf = (typeof data.confidence === 'number' && !isNaN(data.confidence)) ? data.confidence : 0.5;
+    const radius2D = 9 + conf * 7;
+    const val3D = 3.0 + conf * 4.5;
+    const isDimmed = (data.verified === null || (data.metadata && data.metadata.status === 'unverified') || data.status === 'unverified');
 
     const angle = clusterAngle + (Math.random() - 0.5) * 0.6;
     const dist = 90 + Math.random() * 85;
@@ -15085,46 +16147,210 @@ const ColdRoomGraph = {
     const node = {
       id: id,
       label: val.length > 18 ? val.substring(0, 16) + '...' : val,
+      fullLabel: val,
       type: type.toUpperCase(),
       color: color,
-      radius: 13,
+      radius: radius2D,
+      val: val3D,
+      dimmed: isDimmed,
+      confidence: conf,
       x: Math.cos(angle) * dist,
       y: Math.sin(angle) * dist,
+      z: (Math.random() - 0.5) * 40,
       clusterAngle: clusterAngle,
       vx: 0,
       vy: 0,
+      vz: 0,
       data: data
     };
 
+    // Cap rendering at 800 nodes
+    if (this.nodes.length >= 800) {
+      this._handleNodeCapExceeded(node);
+      return;
+    }
+
     this.nodes.push(node);
 
+    // 1. Primary link: Target -> Entity (real basis: discovered for target)
     if (this.targetNode) {
       this.links.push({
-        source: this.targetNode,
-        target: node,
-        label: relLabel,
+        source: this.targetNode.id || this.targetNode,
+        target: node.id,
+        label: 'DISCOVERED FOR TARGET',
+        relType: 'TARGET_DISCOVERY',
+        entityType: node.type,
         pulseOffset: Math.random()
       });
     }
 
-    if (this.nodes.length > 2) {
-      const sameType = this.nodes.find(n => n !== node && n !== this.targetNode && n.type === node.type);
-      if (sameType && Math.random() > 0.45) {
+    // 2. Real Entity -> Entity links (NO random links)
+    // Check discovered_from / parent_entity
+    const discoveredFrom = data.discovered_from || (data.metadata && (data.metadata.discovered_from || data.metadata.parent_entity));
+    if (discoveredFrom) {
+      const parentNode = this.nodes.find(n => n !== node && n !== this.targetNode && (n.fullLabel === discoveredFrom || (n.data && n.data.value === discoveredFrom)));
+      if (parentNode) {
         this.links.push({
-          source: sameType,
-          target: node,
-          label: 'LINKED_TO',
+          source: parentNode.id,
+          target: node.id,
+          label: 'DISCOVERED_FROM',
+          relType: 'PIVOT_PROVENANCE',
           pulseOffset: Math.random()
         });
       }
     }
+
+    // Check corroborated_with (name_match, bio_match, avatar_match, location_match)
+    const corroborations = data.corroborated_with || (data.metadata && data.metadata.corroborated_with) || [];
+    if (Array.isArray(corroborations)) {
+      for (const corr of corroborations) {
+        const corrVal = typeof corr === 'string' ? corr : (corr.value || corr.entity);
+        const signal = (typeof corr === 'object' && corr.signal) ? corr.signal.replace('_', ' ').toUpperCase() : 'CORROBORATED';
+        const corrNode = this.nodes.find(n => n !== node && n !== this.targetNode && (n.fullLabel === corrVal || (n.data && n.data.value === corrVal)));
+        if (corrNode) {
+          const sId = corrNode.id;
+          const tId = node.id;
+          const exists = this.links.some(l => {
+            const ls = typeof l.source === 'object' ? l.source.id : l.source;
+            const lt = typeof l.target === 'object' ? l.target.id : l.target;
+            return (ls === sId && lt === tId) || (ls === tId && lt === sId);
+          });
+          if (!exists) {
+            this.links.push({
+              source: sId,
+              target: tId,
+              label: signal,
+              relType: 'CORRELATION',
+              pulseOffset: Math.random()
+            });
+          }
+        }
+      }
+    }
+
+    // Check related_to metadata dictionary
+    const relatedTo = data.related_to || (data.metadata && data.metadata.related_to);
+    if (relatedTo && typeof relatedTo === 'object') {
+      for (const [relKey, relVal] of Object.entries(relatedTo)) {
+        if (!relVal) continue;
+        const relNode = this.nodes.find(n => n !== node && n !== this.targetNode && (n.fullLabel === relVal || (n.data && n.data.value === relVal)));
+        if (relNode) {
+          const sId = relNode.id;
+          const tId = node.id;
+          const exists = this.links.some(l => {
+            const ls = typeof l.source === 'object' ? l.source.id : l.source;
+            const lt = typeof l.target === 'object' ? l.target.id : l.target;
+            return (ls === sId && lt === tId) || (ls === tId && lt === sId);
+          });
+          if (!exists) {
+            this.links.push({
+              source: sId,
+              target: tId,
+              label: `RELATED_${relKey.toUpperCase()}`,
+              relType: 'PROFILE_RELATION',
+              pulseOffset: Math.random()
+            });
+          }
+        }
+      }
+    }
+
+    if (this.mode === '3d' && this.graph3d) {
+      this.update3DData(true);
+    }
+  },
+
+  _handleNodeCapExceeded(newNode) {
+    this.showNotice('NODE CAP (800) REACHED: Prioritizing highest-confidence entities.');
+    let minIdx = -1;
+    let minConf = Infinity;
+    for (let i = 0; i < this.nodes.length; i++) {
+      const n = this.nodes[i];
+      if (n === this.targetNode) continue;
+      const c = (n.confidence != null) ? n.confidence : 0.5;
+      if (c < minConf) {
+        minConf = c;
+        minIdx = i;
+      }
+    }
+
+    const newConf = (newNode.confidence != null) ? newNode.confidence : 0.5;
+    if (newConf > minConf && minIdx >= 0) {
+      const removed = this.nodes[minIdx];
+      this.links = this.links.filter(l => {
+        const ls = typeof l.source === 'object' ? l.source.id : l.source;
+        const lt = typeof l.target === 'object' ? l.target.id : l.target;
+        return ls !== removed.id && lt !== removed.id;
+      });
+      this.nodes[minIdx] = newNode;
+      if (this.targetNode) {
+        this.links.push({
+          source: this.targetNode.id || this.targetNode,
+          target: newNode.id,
+          label: 'DISCOVERED FOR TARGET',
+          relType: 'TARGET_DISCOVERY',
+          entityType: newNode.type,
+          pulseOffset: Math.random()
+        });
+      }
+      if (this.mode === '3d' && this.graph3d) {
+        this.update3DData(true);
+      }
+    }
+  },
+
+  update3DData(incremental = false) {
+    if (!this.graph3d) return;
+    const gNodes = this.nodes.map(n => ({ ...n }));
+    const nodeMap = new Set(gNodes.map(n => n.id));
+    const gLinks = this.links
+      .map(l => ({
+        ...l,
+        source: typeof l.source === 'object' ? l.source.id : l.source,
+        target: typeof l.target === 'object' ? l.target.id : l.target,
+      }))
+      .filter(l => nodeMap.has(l.source) && nodeMap.has(l.target));
+
+    if (incremental) {
+      // Retain existing camera orientation and position during incremental live updates
+      const currCam = this.graph3d.cameraPosition();
+      this.graph3d.graphData({ nodes: gNodes, links: gLinks });
+      if (currCam && typeof currCam.x === 'number') {
+        this.graph3d.cameraPosition(currCam, null, 0);
+      }
+      this.graph3d.d3ReheatSimulation();
+    } else {
+      this.graph3d.graphData({ nodes: gNodes, links: gLinks });
+    }
+  },
+
+  selectNode(node, notifyController = true) {
+    this.selectedNode = node;
+    if (notifyController && node && node.data && window.ColdRoom) {
+      ColdRoom.selectEntity(node.data);
+    }
+    if (this.mode === '3d' && this.graph3d) {
+      this._updateLabelSprites();
+      this.graph3d.refresh();
+    }
+  },
+
+  focusCameraOnNode(node) {
+    if (!node || !this.graph3d) return;
+    const distance = 90;
+    const distRatio = 1 + distance / (Math.hypot(node.x, node.y, node.z) || 1);
+    this.graph3d.cameraPosition(
+      { x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio },
+      { x: node.x, y: node.y, z: node.z },
+      900
+    );
   },
 
   highlight(val) {
     if (!val) return;
-    const found = this.nodes.find(n => n.data && (n.data.value === val || n.data.text === val || n.label === val));
+    const found = this.nodes.find(n => n.data && (n.data.value === val || n.data.text === val || n.label === val || n.fullLabel === val));
     if (found) {
-      this.selectedNode = found;
+      this.selectNode(found, false);
     }
   },
 
@@ -15141,26 +16367,146 @@ const ColdRoomGraph = {
   },
 
   recenter() {
-    this.panX = 0;
-    this.panY = 0;
-    this.zoom = 1.0;
+    if (this.mode === '3d' && this.graph3d) {
+      this.graph3d.cameraPosition({ x: 0, y: 0, z: 280 }, { x: 0, y: 0, z: 0 }, 800);
+    } else {
+      this.panX = 0;
+      this.panY = 0;
+      this.zoom = 1.0;
+    }
+  },
+
+  filter(category, query) {
+    this.filterCategory = category || 'all';
+    this.searchQuery = (query || '').trim().toLowerCase();
+    if (this.mode === '3d' && this.graph3d) {
+      this.graph3d.refresh();
+    }
   },
 
   reset() {
+    this._clearLabelSprites();
     this.nodes = [];
     this.links = [];
     this.targetNode = null;
     this.hoveredNode = null;
     this.selectedNode = null;
     this.recenter();
+    if (this.mode === '3d' && this.graph3d) {
+      this.graph3d.graphData({ nodes: [], links: [] });
+    }
+  },
+
+  dispose3D() {
+    if (this._idleDisposalTimer) {
+      clearTimeout(this._idleDisposalTimer);
+      this._idleDisposalTimer = null;
+    }
+    if (!this.graph3d) return;
+
+    this._clearLabelSprites();
+
+    try {
+      this.graph3d.pauseAnimation();
+      const scene = this.graph3d.scene();
+      if (scene) {
+        scene.traverse(obj => {
+          if (obj.geometry) {
+            try { obj.geometry.dispose(); } catch (_) {}
+          }
+          if (obj.material) {
+            if (Array.isArray(obj.material)) {
+              obj.material.forEach(m => {
+                if (m.map) try { m.map.dispose(); } catch (_) {}
+                try { m.dispose(); } catch (_) {}
+              });
+            } else {
+              if (obj.material.map) try { obj.material.map.dispose(); } catch (_) {}
+              try { obj.material.dispose(); } catch (_) {}
+            }
+          }
+        });
+      }
+
+      const renderer = this.graph3d.renderer();
+      if (renderer) {
+        try { renderer.dispose(); } catch (_) {}
+        if (typeof renderer.forceContextLoss === 'function') {
+          try { renderer.forceContextLoss(); } catch (_) {}
+        }
+        if (renderer.domElement && renderer.domElement.parentNode) {
+          renderer.domElement.parentNode.removeChild(renderer.domElement);
+        }
+      }
+
+      if (typeof this.graph3d._destructor === 'function') {
+        try { this.graph3d._destructor(); } catch (_) {}
+      }
+    } catch (e) {
+      console.warn('[ColdRoomGraph] Error during 3D disposal:', e);
+    }
+
+    if (this._labelGroup) {
+      if (this._labelGroup.parent) this._labelGroup.parent.remove(this._labelGroup);
+      this._labelGroup = null;
+    }
+
+    this.graph3d = null;
+    this._isDisposed = true;
+    console.log('[ColdRoomGraph] Disposed 3D WebGL context after 15s idle off-screen');
+  },
+
+  pause() {
+    if (this.mode === '3d') {
+      if (this.graph3d) {
+        this.graph3d.pauseAnimation();
+      }
+      if (!this._idleDisposalTimer && this.graph3d) {
+        this._idleDisposalTimer = setTimeout(() => {
+          this.dispose3D();
+        }, 15000);
+      }
+    } else {
+      this.pause2D();
+    }
+  },
+
+  resume() {
+    if (this._idleDisposalTimer) {
+      clearTimeout(this._idleDisposalTimer);
+      this._idleDisposalTimer = null;
+    }
+
+    if (this.mode === '3d') {
+      if (!this.graph3d) {
+        this._init3D();
+      } else {
+        this.graph3d.resumeAnimation();
+      }
+    } else {
+      this.startLoop();
+    }
+  },
+
+  // 2D Canvas Loop & Rendering Methods
+  resize() {
+    if (!this.canvas || !this.container) return;
+    const dpr = window.devicePixelRatio || 1;
+    const w = this.container.clientWidth;
+    const h = this.container.clientHeight;
+    if (w === 0 || h === 0) return;
+    this.canvas.width = w * dpr;
+    this.canvas.height = h * dpr;
+    this.canvas.style.width = w + 'px';
+    this.canvas.style.height = h + 'px';
   },
 
   startLoop() {
-    if (this._running) return;
-    this._running = true;
+    if (this._running2D) return;
+    this._running2D = true;
     const step = () => {
-      if (!this._running || document.hidden || (typeof SpatialNav !== 'undefined' && SpatialNav.currentX > -400)) {
-        this._running = false;
+      if (!this._running2D || document.hidden || (typeof SpatialNav !== 'undefined' && SpatialNav.currentX > -400)) {
+        this._running2D = false;
         this.animId = null;
         return;
       }
@@ -15171,17 +16517,11 @@ const ColdRoomGraph = {
     this.animId = requestAnimationFrame(step);
   },
 
-  pause() {
-    this._running = false;
+  pause2D() {
+    this._running2D = false;
     if (this.animId) {
       cancelAnimationFrame(this.animId);
       this.animId = null;
-    }
-  },
-
-  resume() {
-    if (typeof SpatialNav === 'undefined' || SpatialNav.currentX <= -400) {
-      this.startLoop();
     }
   },
 
@@ -15207,8 +16547,9 @@ const ColdRoomGraph = {
     }
 
     for (const link of this.links) {
-      const s = link.source;
-      const t = link.target;
+      const s = typeof link.source === 'object' ? link.source : this.nodes.find(n => n.id === link.source);
+      const t = typeof link.target === 'object' ? link.target : this.nodes.find(n => n.id === link.target);
+      if (!s || !t) continue;
       const dx = t.x - s.x;
       const dy = t.y - s.y;
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -15217,7 +16558,7 @@ const ColdRoomGraph = {
       const fx = (dx / dist) * force;
       const fy = (dy / dist) * force;
       if (!s.fixed) { s.vx += fx; s.vy += fy; }
-      if (!t.fixed) { t.vx -= fx; t.vy -= fy; }
+      if (!t.fixed) { t.vx += fx; t.vy += fy; }
     }
 
     for (const n of this.nodes) {
@@ -15256,7 +16597,7 @@ const ColdRoomGraph = {
 
     this.pulseTime += 0.02;
 
-    // Faint holographic tactical range rings and cosmic crosshairs
+    // Tactical range rings
     ctx.save();
     ctx.strokeStyle = 'rgba(0, 240, 255, 0.05)';
     ctx.lineWidth = 1;
@@ -15273,14 +16614,16 @@ const ColdRoomGraph = {
 
     // Draw Links
     for (const link of this.links) {
-      const s = link.source;
-      const t = link.target;
+      const s = typeof link.source === 'object' ? link.source : this.nodes.find(n => n.id === link.source);
+      const t = typeof link.target === 'object' ? link.target : this.nodes.find(n => n.id === link.target);
+      if (!s || !t) continue;
 
+      const isConnected = this._isLinkConnectedToSelected(link);
       ctx.beginPath();
       ctx.moveTo(s.x, s.y);
       ctx.lineTo(t.x, t.y);
-      ctx.strokeStyle = link.isCrossCase ? 'rgba(255, 157, 46, 0.45)' : 'rgba(0, 240, 255, 0.20)';
-      ctx.lineWidth = link.isCrossCase ? 2.0 : 1.3;
+      ctx.strokeStyle = isConnected ? '#00F0FF' : (link.isCrossCase ? 'rgba(255, 157, 46, 0.45)' : 'rgba(0, 240, 255, 0.18)');
+      ctx.lineWidth = isConnected ? 2.2 : (link.isCrossCase ? 1.8 : 1.2);
       ctx.stroke();
 
       // Traveling data pulse
@@ -15288,15 +16631,12 @@ const ColdRoomGraph = {
       const px = s.x + (t.x - s.x) * tPulse;
       const py = s.y + (t.y - s.y) * tPulse;
       ctx.beginPath();
-      ctx.arc(px, py, link.isCrossCase ? 3.0 : 2.2, 0, Math.PI * 2);
-      ctx.fillStyle = link.isCrossCase ? '#FF9D2E' : '#00F0FF';
-      ctx.shadowColor = link.isCrossCase ? '#FF9D2E' : '#00F0FF';
-      ctx.shadowBlur = 6;
+      ctx.arc(px, py, isConnected ? 3.2 : 2.0, 0, Math.PI * 2);
+      ctx.fillStyle = isConnected ? '#FFFFFF' : (link.isCrossCase ? '#FF9D2E' : '#00F0FF');
       ctx.fill();
-      ctx.shadowBlur = 0;
 
-      // Link semantic label
-      if (link.label && this.zoom >= 0.72) {
+      // Semantic label
+      if (link.label && (this.zoom >= 0.72 || isConnected)) {
         const mx = (s.x + t.x) / 2;
         const my = (s.y + t.y) / 2;
         ctx.font = '7.5px "JetBrains Mono", monospace';
@@ -15305,7 +16645,7 @@ const ColdRoomGraph = {
         const txtW = ctx.measureText(link.label).width;
         ctx.fillStyle = 'rgba(7, 11, 16, 0.82)';
         ctx.fillRect(mx - txtW / 2 - 3, my - 5, txtW + 6, 10);
-        ctx.fillStyle = link.isCrossCase ? '#FFB84D' : 'rgba(0, 240, 255, 0.75)';
+        ctx.fillStyle = isConnected ? '#FFFFFF' : (link.isCrossCase ? '#FFB84D' : 'rgba(0, 240, 255, 0.75)');
         ctx.fillText(link.label, mx, my);
       }
     }
@@ -15315,6 +16655,14 @@ const ColdRoomGraph = {
       const isTarget = n.fixed || n.type === 'TARGET';
       const isSelected = n === this.selectedNode;
       const isHovered = n === this.hoveredNode;
+      const matches = this._matchesFilterAndSearch(n);
+
+      ctx.save();
+      if (!matches) {
+        ctx.globalAlpha = 0.12;
+      } else if (n.dimmed) {
+        ctx.globalAlpha = 0.45;
+      }
 
       // Outer glow pulse
       ctx.beginPath();
@@ -15330,10 +16678,7 @@ const ColdRoomGraph = {
       ctx.fill();
       ctx.lineWidth = isSelected ? 2.5 : 1.8;
       ctx.strokeStyle = isSelected ? '#FFFFFF' : n.color;
-      ctx.shadowColor = n.color;
-      ctx.shadowBlur = isSelected ? 12 : 6;
       ctx.stroke();
-      ctx.shadowBlur = 0;
 
       // Center core
       ctx.beginPath();
@@ -15341,7 +16686,7 @@ const ColdRoomGraph = {
       ctx.fillStyle = n.color;
       ctx.fill();
 
-      // Label below node
+      // Node label
       ctx.font = isTarget ? 'bold 10.5px "JetBrains Mono", monospace' : '9px "JetBrains Mono", monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
@@ -15355,6 +16700,8 @@ const ColdRoomGraph = {
 
       ctx.fillStyle = isSelected ? '#FFFFFF' : (isTarget ? '#FFB84D' : '#D1D5DB');
       ctx.fillText(labelText, n.x, textY);
+
+      ctx.restore();
     }
 
     ctx.restore();
@@ -15532,6 +16879,10 @@ const ColdRoom = {
         card.style.display = 'none';
       }
     });
+
+    if (window.ColdRoomGraph && typeof window.ColdRoomGraph.filter === 'function') {
+      window.ColdRoomGraph.filter(this.filterCategory, this.searchQuery);
+    }
   },
 
   crossVerify() {
@@ -15835,19 +17186,8 @@ window.toggleCaseDrawer = function() {
 };
 
 window.promptNewColdRoomTarget = function() {
-  const target = prompt('Enter primary investigation target (domain, IP, handle, or organization):');
-  if (target && target.trim()) {
-    const cleanTarget = target.trim();
-    ColdRoom.reset();
-    ColdRoom.setTarget(cleanTarget);
-    ColdRoom.setStatus('INITIALIZING INVESTIGATION...', true);
-    if (ColdRoom.caseDrawerOpen) ColdRoom.toggleDrawer();
-    const chatInput = document.getElementById('chat-input');
-    if (chatInput) {
-      chatInput.value = `investigate ${cleanTarget}`;
-      handleSend();
-    }
-  }
+  if (ColdRoom && ColdRoom.caseDrawerOpen) ColdRoom.toggleDrawer();
+  openInvestigationBrief({ switch_to_cold_room: true });
 };
 
 window.crossVerifyCase = function() {
@@ -16126,9 +17466,48 @@ const SpatialNav = {
     ColdRoom.init();
     window.addEventListener('pointerdown', (e) => this.onPointerDown(e));
     window.addEventListener('pointermove', (e) => this.onPointerMove(e));
-    window.addEventListener('pointerup', () => this.onPointerUp());
-    window.addEventListener('pointercancel', () => this.onPointerUp());
+    window.addEventListener('pointerup', (e) => this.onPointerUp(e));
+    window.addEventListener('pointercancel', (e) => this.onPointerUp(e));
     window.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
+
+    // Explicit edge button click listeners
+    const edgeRight = document.getElementById('spatial-edge-right');
+    const edgeLeft = document.getElementById('spatial-edge-left');
+    if (edgeRight) {
+      edgeRight.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.onRightEdgeClick();
+      });
+    }
+    if (edgeLeft) {
+      edgeLeft.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.onLeftEdgeClick();
+      });
+    }
+
+    // Top spatial dock track drag scrub support
+    const dockTrack = document.getElementById('dock-track');
+    if (dockTrack) {
+      let isTrackScrubbing = false;
+      const scrubTrack = (ev) => {
+        const rect = dockTrack.getBoundingClientRect();
+        const ratio = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
+        this.glideTo(-950 + ratio * 1900);
+      };
+      dockTrack.addEventListener('pointerdown', (ev) => {
+        if (ev.button !== 0) return;
+        isTrackScrubbing = true;
+        try { dockTrack.setPointerCapture(ev.pointerId); } catch (_) {}
+        scrubTrack(ev);
+      });
+      dockTrack.addEventListener('pointermove', (ev) => {
+        if (isTrackScrubbing) scrubTrack(ev);
+      });
+      const endTrackScrub = () => { isTrackScrubbing = false; };
+      dockTrack.addEventListener('pointerup', endTrackScrub);
+      dockTrack.addEventListener('pointercancel', endTrackScrub);
+    }
 
     // Multi-finger swipe gesture across 3 screens
     let touchStartX = 0;
@@ -16202,8 +17581,13 @@ const SpatialNav = {
     this.glideTo(-950 + ratio * 1900);
   },
 
+  _lastEdgeClickTime: 0,
+
   onRightEdgeClick() {
-    if (this.currentX < -300) {
+    const now = performance.now();
+    if (now - this._lastEdgeClickTime < 320) return;
+    this._lastEdgeClickTime = now;
+    if (this.targetX < -200 || this.currentX < -200) {
       this.glideTo(0);
     } else {
       this.glideTo(950);
@@ -16211,7 +17595,10 @@ const SpatialNav = {
   },
 
   onLeftEdgeClick() {
-    if (this.currentX > 300) {
+    const now = performance.now();
+    if (now - this._lastEdgeClickTime < 320) return;
+    this._lastEdgeClickTime = now;
+    if (this.targetX > 200 || this.currentX > 200) {
       this.glideTo(0);
     } else {
       this.glideTo(-950);
@@ -16219,6 +17606,7 @@ const SpatialNav = {
   },
 
   isPointerDown: false,
+  dragTargetPill: null,
 
   onPointerDown(e) {
     if (e.button !== undefined && e.button !== 0) return;
@@ -16231,28 +17619,42 @@ const SpatialNav = {
 
     // Screen-switching mouse drag belongs ONLY to thin edge strips.
     // Drags on KG canvas, Cesium globe, Cold Room graph/panels, chat panel, composer, HUD, or Screen 3 Tactical Panel belong to those elements.
-    if (!isEdgeStrip || (e.target.closest && e.target.closest('input, textarea, select, option, .globe-hud-btn, .card-detach-btn, .top-bar-menu-btn, .cr-action-btn, #spatial-globe-hud, .globe-hud-rail-bar, .globe-hud-card, .detached-card, .tactical-window-panel'))) {
+    const isControl = Boolean(e.target.closest && e.target.closest('input, textarea, select, option, button, .globe-hud-btn, .card-detach-btn, .top-bar-menu-btn, .cr-action-btn, #spatial-globe-hud, .globe-hud-rail-bar, .globe-hud-card, .detached-card, .tactical-window-panel, #chat-expand-launcher, #jarvis-chat-container, #jarvis-input-bar, .chat-resize-handle, #spatial-nav-dock, #gods-eye-bottom-dock, #bottom-bar'));
+    if (!isEdgeStrip || isControl) {
       this.isPointerDown = false;
       this.isDragging = false;
+      this.dragTargetPill = null;
       return;
     }
 
-    // Ownership decided strictly at pointerdown and retained for the entire drag
+    // Ownership decided at pointerdown, but drag mode activates only if pointer moves past threshold
     this.isPointerDown = true;
-    this.isDragging = true;
+    this.isDragging = false;
+    this.dragTargetPill = e.target.closest ? e.target.closest('.spatial-edge-strip') : null;
     this.dragStartX = e.clientX;
     this.dragStartY = e.clientY;
     this.dragStartSpatialX = this.targetX;
     this.lastPointerX = e.clientX;
     this.pointerVelocity = 0;
     this.lastPointerTime = performance.now();
-    this._startNavLoop();
   },
 
   onPointerMove(e) {
-    if (!this.isPointerDown || !this.isDragging) return;
+    if (!this.isPointerDown) return;
 
     const dx = e.clientX - this.dragStartX;
+    const dy = e.clientY - this.dragStartY;
+
+    if (!this.isDragging) {
+      // 6px drag threshold prevents accidental micro-drags during click
+      if (Math.hypot(dx, dy) > 6) {
+        this.isDragging = true;
+        this._startNavLoop();
+      } else {
+        return;
+      }
+    }
+
     const now = performance.now();
     const dt = Math.max(1, now - this.lastPointerTime);
     this.pointerVelocity = (e.clientX - this.lastPointerX) / dt;
@@ -16264,10 +17666,13 @@ const SpatialNav = {
     this._startNavLoop();
   },
 
-  onPointerUp() {
+  onPointerUp(e) {
     const wasDragging = this.isDragging;
+    const targetPill = this.dragTargetPill;
+
     this.isPointerDown = false;
     this.isDragging = false;
+    this.dragTargetPill = null;
     this.isGlobeInteracting = false;
 
     // Restore OrbitControls if previously locked during drag
@@ -16290,13 +17695,25 @@ const SpatialNav = {
         if (this.currentX > 150) this.targetX = 0;
         else this.targetX = -950;
       } else {
-        // Settle smoothly to nearest screen
-        if (this.currentX < -475) this.targetX = -950;
-        else if (this.currentX > 475) this.targetX = 950;
+        // Settle smoothly to nearest screen based on drag target or current position
+        const settlePos = (Math.abs(this.targetX) > Math.abs(this.currentX)) ? this.targetX : this.currentX;
+        if (settlePos < -475) this.targetX = -950;
+        else if (settlePos > 475) this.targetX = 950;
         else this.targetX = 0;
       }
+      this._startNavLoop();
+    } else {
+      // Clean click on switch button without dragging
+      const upPill = (e && e.target && e.target.closest) ? e.target.closest('.spatial-edge-strip') : null;
+      const clickedPill = targetPill || upPill;
+      if (clickedPill) {
+        if (clickedPill.id === 'spatial-edge-right' || (clickedPill.closest && clickedPill.closest('#spatial-edge-right'))) {
+          this.onRightEdgeClick();
+        } else if (clickedPill.id === 'spatial-edge-left' || (clickedPill.closest && clickedPill.closest('#spatial-edge-left'))) {
+          this.onLeftEdgeClick();
+        }
+      }
     }
-    this._startNavLoop();
   },
 
   onWheel(e) {
@@ -16599,6 +18016,44 @@ document.body.classList.add('chat-panel-collapsed');
 
 window.isChatPanelCollapsed = true;
 
+let headerClickTimer = null;
+window.handleChatPanelHeaderClick = function(e) {
+  if (e && e.target && e.target.closest('.chat-panel-collapse-btn')) return;
+  if (headerClickTimer) {
+    clearTimeout(headerClickTimer);
+    headerClickTimer = null;
+    return;
+  }
+  headerClickTimer = setTimeout(() => {
+    headerClickTimer = null;
+    window.toggleChatPanel();
+  }, 220);
+};
+
+window.handleChatPanelHeaderDblClick = function(e) {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  if (headerClickTimer) {
+    clearTimeout(headerClickTimer);
+    headerClickTimer = null;
+  }
+  window.resetChatPanelSize();
+};
+
+window.resetChatPanelSize = function() {
+  try {
+    localStorage.removeItem('jarvis_chat_panel_size');
+  } catch (_) {}
+  document.documentElement.style.removeProperty('--chat-panel-width');
+  document.documentElement.style.removeProperty('--chat-panel-height');
+  document.documentElement.style.removeProperty('--chat-panel-left');
+  if (document.body.classList.contains('chat-panel-collapsed')) {
+    window.toggleChatPanel(false);
+  }
+};
+
 window.toggleChatPanel = function(forceState) {
   if (typeof forceState === 'boolean') {
     isChatPanelCollapsed = forceState;
@@ -16724,10 +18179,171 @@ function initDraggableChatLauncher() {
   });
 }
 
+function initChatPanelResize() {
+  const container = document.getElementById('jarvis-chat-container');
+  if (!container || container._resizeInitialized) return;
+  container._resizeInitialized = true;
+
+  const header = document.getElementById('chat-panel-header');
+  const MIN_WIDTH = 360;
+  const MIN_HEIGHT = 240;
+
+  // 1. Restore saved size if present in localStorage (without uncollapsing)
+  try {
+    const saved = localStorage.getItem('jarvis_chat_panel_size');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed && typeof parsed.width === 'number' && typeof parsed.height === 'number') {
+        const left = (typeof parsed.left === 'number') ? parsed.left : null;
+        const maxW = Math.max(MIN_WIDTH, window.innerWidth - (left !== null ? left : (window.innerWidth * 0.2)) - 16);
+        const maxH = Math.max(MIN_HEIGHT, window.innerHeight - 78 - 40);
+        const w = Math.max(MIN_WIDTH, Math.min(maxW, parsed.width));
+        const h = Math.max(MIN_HEIGHT, Math.min(maxH, parsed.height));
+        document.documentElement.style.setProperty('--chat-panel-width', `${w}px`);
+        document.documentElement.style.setProperty('--chat-panel-height', `${h}px`);
+        if (left !== null) {
+          const clampedLeft = Math.max(10, Math.min(window.innerWidth - w - 10, left));
+          document.documentElement.style.setProperty('--chat-panel-left', `${clampedLeft}px`);
+        }
+      }
+    }
+  } catch (_) {}
+
+  // 2. Double-click on header restores default size
+  if (header) {
+    header.addEventListener('dblclick', (e) => {
+      window.handleChatPanelHeaderDblClick(e);
+    });
+  }
+
+  // 3. Pointer-drag on resize handles (anchored at bottom-left, grows up & right)
+  const handles = container.querySelectorAll('.chat-resize-handle');
+  handles.forEach(handle => {
+    handle.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const direction = handle.getAttribute('data-direction');
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const rect = container.getBoundingClientRect();
+      const startWidth = rect.width;
+      const startHeight = rect.height;
+      const anchorLeft = rect.left;
+
+      document.body.classList.add('chat-panel-resizing');
+      try {
+        handle.setPointerCapture(e.pointerId);
+      } catch (_) {}
+
+      let currentW = startWidth;
+      let currentH = startHeight;
+      let rafId = null;
+
+      const onPointerMove = (ev) => {
+        ev.preventDefault();
+        const dx = ev.clientX - startX;
+        const dy = startY - ev.clientY; // upwards drag is positive height change
+
+        let w = startWidth;
+        let h = startHeight;
+
+        if (direction === 'r' || direction === 'tr') {
+          const maxW = Math.max(MIN_WIDTH, window.innerWidth - anchorLeft - 16);
+          w = Math.max(MIN_WIDTH, Math.min(maxW, Math.round(startWidth + dx)));
+        }
+
+        if (direction === 't' || direction === 'tr') {
+          const maxH = Math.max(MIN_HEIGHT, window.innerHeight - 78 - 40);
+          h = Math.max(MIN_HEIGHT, Math.min(maxH, Math.round(startHeight + dy)));
+        }
+
+        currentW = w;
+        currentH = h;
+
+        if (!rafId) {
+          rafId = requestAnimationFrame(() => {
+            rafId = null;
+            document.documentElement.style.setProperty('--chat-panel-left', `${anchorLeft}px`);
+            if (direction === 'r' || direction === 'tr') {
+              document.documentElement.style.setProperty('--chat-panel-width', `${currentW}px`);
+            }
+            if (direction === 't' || direction === 'tr') {
+              document.documentElement.style.setProperty('--chat-panel-height', `${currentH}px`);
+            }
+          });
+        }
+      };
+
+      const onPointerUp = (ev) => {
+        if (rafId) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+        document.body.classList.remove('chat-panel-resizing');
+        try {
+          handle.releasePointerCapture(e.pointerId);
+        } catch (_) {}
+
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', onPointerUp);
+        window.removeEventListener('pointercancel', onPointerUp);
+
+        // Apply final values
+        document.documentElement.style.setProperty('--chat-panel-left', `${anchorLeft}px`);
+        if (direction === 'r' || direction === 'tr') {
+          document.documentElement.style.setProperty('--chat-panel-width', `${currentW}px`);
+        }
+        if (direction === 't' || direction === 'tr') {
+          document.documentElement.style.setProperty('--chat-panel-height', `${currentH}px`);
+        }
+
+        // Persist to localStorage
+        try {
+          localStorage.setItem('jarvis_chat_panel_size', JSON.stringify({
+            width: currentW,
+            height: currentH,
+            left: anchorLeft
+          }));
+        } catch (_) {}
+      };
+
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+      window.addEventListener('pointercancel', onPointerUp);
+    });
+  });
+
+  // 4. Clamping on window resize
+  window.addEventListener('resize', () => {
+    const saved = localStorage.getItem('jarvis_chat_panel_size');
+    if (!saved) return;
+    try {
+      const parsed = JSON.parse(saved);
+      if (parsed && typeof parsed.width === 'number' && typeof parsed.height === 'number') {
+        const left = (typeof parsed.left === 'number') ? parsed.left : (window.innerWidth - parsed.width) / 2;
+        const maxW = Math.max(MIN_WIDTH, window.innerWidth - left - 16);
+        const maxH = Math.max(MIN_HEIGHT, window.innerHeight - 78 - 40);
+        const w = Math.max(MIN_WIDTH, Math.min(maxW, parsed.width));
+        const h = Math.max(MIN_HEIGHT, Math.min(maxH, parsed.height));
+        const clampedLeft = Math.max(10, Math.min(window.innerWidth - w - 10, left));
+        document.documentElement.style.setProperty('--chat-panel-width', `${w}px`);
+        document.documentElement.style.setProperty('--chat-panel-height', `${h}px`);
+        document.documentElement.style.setProperty('--chat-panel-left', `${clampedLeft}px`);
+      }
+    } catch (_) {}
+  });
+}
+
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initDraggableChatLauncher);
+  document.addEventListener('DOMContentLoaded', () => {
+    initDraggableChatLauncher();
+    initChatPanelResize();
+  });
 } else {
   initDraggableChatLauncher();
+  initChatPanelResize();
 }
 
 document.addEventListener('keydown', function(e) {

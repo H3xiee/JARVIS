@@ -35,6 +35,11 @@ import tempfile
 import shutil
 import struct
 import wave
+import io
+import uuid
+import html
+import secrets
+from core.input_parser import parse_brief_identifiers
 try:
     import psutil
 except ImportError:
@@ -78,6 +83,245 @@ _CONTEXT_SIGNALS = re.compile(
     r"used to|might have|previously|formerly|known as)",
     re.IGNORECASE,
 )
+
+_SESSION_ID_REGEX = re.compile(r'^[a-f0-9]{32}$')
+
+
+def _validate_local_origin_and_host(request) -> bool:
+    """
+    Restricts staging and case upload requests to the local desktop UI.
+    Rejects with 403 if Host is not 127.0.0.1:<port> / localhost:<port>
+    or if an Origin header is present and does not match the local port.
+    """
+    host = request.get_header('host') or request.headers.get('Host') or ''
+    host_no_port = host.split(':')[0].strip().lower()
+    if host_no_port not in ('127.0.0.1', 'localhost', '::1', '[::1]'):
+        return False
+
+    origin = request.get_header('origin') or request.headers.get('Origin')
+    if origin:
+        from urllib.parse import urlparse
+        try:
+            parsed = urlparse(origin)
+            origin_host = (parsed.hostname or '').lower()
+            if origin_host not in ('127.0.0.1', 'localhost', '::1', '[::1]'):
+                return False
+            if ':' in host:
+                host_port = host.split(':')[-1]
+                if parsed.port and str(parsed.port) != str(host_port):
+                    return False
+        except Exception:
+            return False
+    return True
+
+
+def _sanitize_exif(exif_dict: dict) -> dict:
+    """
+    Sanitizes EXIF preview values: limits field length to max 128 characters
+    and HTML-escapes strings to prevent any payload reflection.
+    """
+    if not isinstance(exif_dict, dict):
+        return {}
+    sanitized = {}
+    for k, v in exif_dict.items():
+        if k == "gps" and isinstance(v, dict):
+            try:
+                lat = float(v.get("lat")) if v.get("lat") is not None else None
+                lon = float(v.get("lon")) if v.get("lon") is not None else None
+                alt = float(v.get("altitude")) if v.get("altitude") is not None else None
+                sanitized["gps"] = {
+                    "lat": round(lat, 6) if lat is not None else None,
+                    "lon": round(lon, 6) if lon is not None else None,
+                    "altitude": round(alt, 2) if alt is not None else None,
+                }
+            except (ValueError, TypeError):
+                sanitized["gps"] = None
+        elif isinstance(v, bool):
+            sanitized[k] = v
+        elif v is not None:
+            sanitized[k] = html.escape(str(v)[:128])
+        else:
+            sanitized[k] = None
+    return sanitized
+
+
+def check_case_slug_exists(slug: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    """
+    Checks if a case already exists on disk in CASES_DIR or ~/.jarvis/cases.
+    Returns (exists, case_summary_dict_or_None).
+    """
+    from core.target_model import CASES_DIR
+    clean_slug = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', slug).strip('._-')
+    if not clean_slug:
+        return False, None
+
+    candidate_dirs = [
+        CASES_DIR / clean_slug,
+        Path.home() / ".jarvis" / "cases" / clean_slug,
+    ]
+    for d in candidate_dirs:
+        case_file = d / "case.json"
+        if case_file.exists() and case_file.is_file():
+            try:
+                data = json.loads(case_file.read_text(encoding="utf-8"))
+                summary = {
+                    "slug": clean_slug,
+                    "primary": data.get("primary", clean_slug),
+                    "target_type": data.get("target_type", "unknown"),
+                    "risk_score": data.get("risk_score", 0),
+                    "breaches_count": len(data.get("breaches", [])),
+                    "entities_count": len(data.get("entities", [])),
+                    "last_updated": data.get("last_updated", "unknown"),
+                    "case_title": data.get("case_title", ""),
+                }
+                return True, summary
+            except Exception:
+                return True, {"slug": clean_slug, "primary": clean_slug}
+        elif d.is_dir():
+            return True, {"slug": clean_slug, "primary": clean_slug}
+    return False, None
+
+
+def get_next_available_slug(base_slug: str) -> str:
+    """
+    Suggests the next available numeric suffix e.g. octocat-2, octocat-3.
+    """
+    clean_base = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', base_slug).strip('._-')
+    if not clean_base:
+        clean_base = "case"
+
+    m = re.match(r'^(.*?)-(\d+)$', clean_base)
+    if m:
+        root = m.group(1)
+        idx = int(m.group(2)) + 1
+    else:
+        root = clean_base
+        idx = 2
+
+    while True:
+        candidate = f"{root}-{idx}"
+        exists, _ = check_case_slug_exists(candidate)
+        if not exists:
+            return candidate
+        idx += 1
+
+
+def ground_extracted_hints(hints: dict, raw_text: str, identifiers: list = None) -> dict:
+    """
+    Validates extracted hints against user's raw narrative and identifiers.
+    Discards any candidate real_name, employer, or additional_usernames that
+    are not lexically grounded in the user's provided input.
+    """
+    if not isinstance(hints, dict):
+        return {}
+
+    corpus = (raw_text or "").lower()
+    if identifiers:
+        for ident in identifiers:
+            if isinstance(ident, dict):
+                corpus += " " + str(ident.get("value", "")).lower()
+            elif isinstance(ident, str):
+                corpus += " " + ident.lower()
+
+    grounded = dict(hints)
+
+    def is_grounded(val: str) -> bool:
+        if not val or not isinstance(val, str):
+            return False
+        v_clean = val.strip().lower()
+        if not v_clean:
+            return False
+        if v_clean in corpus:
+            return True
+        words = re.findall(r'\b[a-zA-Z0-9_\-\.]{2,}\b', v_clean)
+        if words and all(w in corpus for w in words):
+            return True
+        return False
+
+    if "real_name" in grounded and grounded["real_name"]:
+        if not is_grounded(grounded["real_name"]):
+            grounded.pop("real_name", None)
+
+    if "employer" in grounded and grounded["employer"]:
+        if not is_grounded(grounded["employer"]):
+            grounded.pop("employer", None)
+
+    if "additional_usernames" in grounded and isinstance(grounded["additional_usernames"], list):
+        grounded["additional_usernames"] = [
+            u for u in grounded["additional_usernames"] if is_grounded(u)
+        ]
+        if not grounded["additional_usernames"]:
+            grounded.pop("additional_usernames", None)
+
+    return grounded
+
+
+def cleanup_stale_staging_folders():
+    """
+    Deletes staging folders older than 24 hours inside cases/.staging/.
+    Never touches real case folders.
+    """
+    from core.target_model import CASES_DIR
+    candidate_bases = [
+        CASES_DIR / ".staging",
+        Path.home() / ".jarvis" / "cases" / ".staging",
+    ]
+    cutoff = time.time() - (24 * 3600)
+    for staging_base in candidate_bases:
+        if not staging_base.exists() or not staging_base.is_dir():
+            continue
+        try:
+            for p in staging_base.iterdir():
+                if p.is_dir() and _SESSION_ID_REGEX.match(p.name):
+                    try:
+                        mtime = p.stat().st_mtime
+                        if mtime < cutoff:
+                            shutil.rmtree(p, ignore_errors=True)
+                    except Exception as err:
+                        print(f"[desktop] Staging folder cleanup notice: {err}")
+        except Exception as e:
+            print(f"[desktop] Staging base scan notice: {e}")
+
+
+def _process_and_save_image(raw_bytes: bytes, dest_dir: Path, prefix: str = "img_") -> Tuple[Optional[Path], Optional[Dict[str, Any]], Optional[str]]:
+    """
+    Validates, decompresses-checks, and saves an image to dest_dir.
+    Enforces max 10MB, dimensions <= 12000x12000, JPEG/PNG/WEBP only.
+    Extracts and sanitizes EXIF metadata.
+    Returns (saved_path, sanitized_exif, error_message).
+    """
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    if len(raw_bytes) > 10 * 1024 * 1024:
+        return None, None, "Image exceeds 10MB limit"
+
+    from PIL import Image
+    Image.MAX_IMAGE_PIXELS = 144_000_000
+
+    try:
+        bio = io.BytesIO(raw_bytes)
+        with Image.open(bio) as img:
+            fmt = (img.format or "").upper()
+            if fmt not in ("JPEG", "JPG", "PNG", "WEBP"):
+                return None, None, f"Unsupported image format: {fmt}. Allowed formats: JPEG, PNG, WEBP."
+            if img.width > 12000 or img.height > 12000:
+                return None, None, f"Image dimensions {img.width}x{img.height} exceed 12000x12000 limit."
+            img.verify()
+    except Exception as ex:
+        return None, None, f"Invalid image file: {ex}"
+
+    ext = ".jpg" if fmt in ("JPEG", "JPG") else (".png" if fmt == "PNG" else ".webp")
+    fname = f"{prefix}{uuid.uuid4().hex[:12]}{ext}"
+    dest_path = dest_dir / fname
+    dest_path.write_bytes(raw_bytes)
+
+    try:
+        from modules.image_geolocator import extract_exif_metadata
+        exif = extract_exif_metadata(str(dest_path))
+    except Exception:
+        exif = {}
+
+    sanitized_exif = _sanitize_exif(exif)
+    return dest_path, sanitized_exif, None
 
 
 
@@ -805,6 +1049,10 @@ class JarvisAPI:
         # Async Background Initialization for Instant App Launch (<0.2s)
         self._wake_engine = None
         threading.Thread(target=self._async_init_wake_engine, daemon=True).start()
+        try:
+            cleanup_stale_staging_folders()
+        except Exception as e:
+            print(f"[desktop] Staging cleanup notice: {e}")
 
     def resolve_coords(self, candidate: str) -> tuple[float, float, str] | None:
         """Context-aware geospatial coordinate resolver biased to the active viewport/city."""
@@ -932,13 +1180,13 @@ class JarvisAPI:
         except Exception as e:
             print(f"[desktop] SystemCommander debrief hook error: {e}")
 
-    def process_input(self, text: str, submit_time: Optional[float] = None):
+    def process_input(self, text: str, submit_time: Optional[float] = None, source: str = "typed"):
         if submit_time is not None:
             t0 = (submit_time / 1000.0) if submit_time > 1e11 else submit_time
         else:
             t0 = time.time()
         self._msg_t0 = t0
-        print(f"[TIMING] Backend received: +{(time.time() - t0)*1000.0:.1f}ms")
+        print(f"[TIMING] Backend received: +{(time.time() - t0)*1000.0:.1f}ms (source={source})")
 
         norm = re.sub(r'[^\w\s]', '', text or '').strip().lower()
         now = time.time()
@@ -958,14 +1206,14 @@ class JarvisAPI:
         self._follow_up_expires = 0.0
         self._wake_window_expires = 0.0
 
-        print(f"\n[desktop] Unified AI input received: {text}")
+        print(f"\n[desktop] Unified AI input received ({source}): {text}")
         if getattr(self, '_wake_engine', None):
             try:
                 self._wake_engine.reset_cooldown(2.0)
             except Exception:
                 pass
         self._memory.add("user", text)
-        threading.Thread(target=self._run_process_input, args=(text, t0), daemon=True).start()
+        threading.Thread(target=self._run_process_input, args=(text, t0, source), daemon=True).start()
 
     def _on_skill_progress(self, finfo):
         if isinstance(finfo, dict) and "file" in finfo:
@@ -1555,7 +1803,7 @@ class JarvisAPI:
             return True
         return False
 
-    def _run_process_input(self, text: str, t0: Optional[float] = None):
+    def _run_process_input(self, text: str, t0: Optional[float] = None, source: str = "typed"):
         if t0 is None:
             t0 = getattr(self, '_msg_t0', time.time())
         try:
@@ -1638,6 +1886,26 @@ class JarvisAPI:
                     return
                 elif fp_cat == "osint_investigate" and fp_task:
                     target_str = fp_task.data.get("target")
+                    target_type = fp_task.data.get("target_type", "username")
+                    is_explicit = fp_task.data.get("is_explicit", False)
+
+                    from core.config import get_config
+                    always_confirm = bool(get_config("ALWAYS_CONFIRM_INVESTIGATIONS", False))
+
+                    should_open_brief = (source == "voice") or (not is_explicit) or always_confirm
+                    if should_open_brief:
+                        print(f"[desktop] Opening investigation brief modal for target '{target_str}' (source={source}, explicit={is_explicit}, always_confirm={always_confirm})")
+                        session_res = self.create_staging_session()
+                        session_id = session_res.get("session_id", "")
+                        self._emit("open_investigation_brief", {
+                            "target": target_str,
+                            "target_type": target_type,
+                            "transcript": text if source == "voice" else "",
+                            "source": source,
+                            "session_id": session_id,
+                        })
+                        return
+
                     self._emit("scan_status", {
                         "message": f"Autonomous OSINT reconnaissance initiated — Target: {target_str}",
                         "target": target_str,
@@ -1733,9 +2001,23 @@ class JarvisAPI:
                     self._start_follow_up_window()
                     return
 
-                # Clarification answer or resolved follow-up directly launching an investigation
-                if (cls_type in ("clarification_answer", "follow_up")) and intent_name == "investigate" and entities.get("target"):
+                # Investigation intent detected from natural language, clarification, or follow-up
+                if intent_name == "investigate" and entities.get("target"):
                     target_str = entities["target"]
+                    from core.config import get_config
+                    always_confirm = bool(get_config("ALWAYS_CONFIRM_INVESTIGATIONS", False))
+                    should_open_brief = (source == "voice") or (cls_type != "explicit_command") or always_confirm
+                    if should_open_brief:
+                        session_res = self.create_staging_session()
+                        session_id = session_res.get("session_id", "")
+                        self._emit("open_investigation_brief", {
+                            "target": target_str,
+                            "target_type": "username",
+                            "transcript": text if source == "voice" else "",
+                            "source": source,
+                            "session_id": session_id,
+                        })
+                        return
                     self._emit("scan_status", {
                         "message": f"AI identified investigation task from context — Target: {target_str}",
                         "target": target_str,
@@ -1827,15 +2109,17 @@ class JarvisAPI:
             print(f"[desktop] AI Intent decision: {intent}")
             if intent["type"] == "investigate" and intent.get("target"):
                 target_str = intent["target"]
-                self._emit("scan_status", {
-                    "message": f"AI identified investigation task — Target: {target_str}",
+                session_res = self.create_staging_session()
+                session_id = session_res.get("session_id", "")
+                self._emit("open_investigation_brief", {
                     "target": target_str,
-                    "is_investigation": True
+                    "target_type": intent.get("target_type", "username"),
+                    "transcript": text if source == "voice" else "",
+                    "narrative": eff_text if _CONTEXT_SIGNALS.search(eff_text) else "",
+                    "source": source,
+                    "session_id": session_id,
                 })
-                brief = None
-                if _CONTEXT_SIGNALS.search(eff_text):
-                    brief = parse_brief_with_slm(eff_text)
-                self._run_stalk(target_str, brief)
+                return
             else:
                 self._run_ask(eff_text, t0=t0)
         except Exception as e:
@@ -1856,6 +2140,164 @@ class JarvisAPI:
 
     def ask(self, question: str):
         self.process_input(question)
+
+    def create_staging_session(self) -> Dict[str, Any]:
+        from core.target_model import CASES_DIR
+        staging_base = CASES_DIR / ".staging"
+        staging_base.mkdir(parents=True, exist_ok=True)
+
+        existing = [p for p in staging_base.iterdir() if p.is_dir() and _SESSION_ID_REGEX.match(p.name)]
+        if len(existing) >= 5:
+            cleanup_stale_staging_folders()
+            existing = [p for p in staging_base.iterdir() if p.is_dir() and _SESSION_ID_REGEX.match(p.name)]
+            if len(existing) >= 5:
+                return {
+                    "success": False,
+                    "error": "Maximum concurrent staging sessions (5) reached. Please complete or cancel existing sessions."
+                }
+
+        session_id = secrets.token_hex(16)
+        session_dir = staging_base / session_id
+        session_dir.mkdir(parents=True, exist_ok=True)
+        return {"success": True, "session_id": session_id}
+
+    def cancel_staging_session(self, session_id: str) -> Dict[str, Any]:
+        from core.target_model import CASES_DIR
+        if not session_id or not _SESSION_ID_REGEX.match(session_id):
+            return {"success": False, "error": "Invalid session_id"}
+        session_dir = CASES_DIR / ".staging" / session_id
+        if session_dir.exists():
+            shutil.rmtree(session_dir, ignore_errors=True)
+        return {"success": True}
+
+    def open_investigation_brief(self, target_data: Optional[Dict[str, Any]] = None):
+        target_data = dict(target_data or {})
+        session_res = self.create_staging_session()
+        target_data["session_id"] = session_res.get("session_id", "")
+        self._emit("open_investigation_brief", target_data)
+
+    def load_case(self, target: str):
+        self.resume(target)
+
+    def start_brief_investigation(self, brief_data: Dict[str, Any]) -> Dict[str, Any]:
+        from core.target_model import CASES_DIR, Target
+        from core.input_parser import parse_brief_identifiers
+        from core.case_brief import CaseBrief, parse_brief_with_slm
+
+        session_id = (brief_data.get("session_id") or "").strip()
+        case_title = (brief_data.get("case_title") or "").strip()
+        raw_identifiers = brief_data.get("identifiers") or []
+        narrative = (brief_data.get("narrative") or "").strip()
+        location_hints = (brief_data.get("location_hints") or "").strip()
+        time_frame = (brief_data.get("time_frame") or "").strip()
+        custom_slug = (brief_data.get("custom_slug") or "").strip() or None
+        open_existing = bool(brief_data.get("open_existing", False))
+        switch_to_cold_room = bool(brief_data.get("switch_to_cold_room", True))
+
+        # 1. Validate identifiers
+        try:
+            validated_identifiers = parse_brief_identifiers(raw_identifiers)
+        except Exception as ex:
+            return {"success": False, "error": str(ex)}
+
+        primary_item = next((i for i in validated_identifiers if i.get("primary")), validated_identifiers[0])
+        primary_val = primary_item["value"]
+        primary_type = primary_item["type"]
+
+        # 2. Determine target slug
+        if custom_slug:
+            slug = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', custom_slug).strip('._-')
+        else:
+            slug = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', primary_val).strip('._-')
+        slug = slug or "unnamed_target"
+
+        # 3. Check collision
+        exists, existing_summary = check_case_slug_exists(slug)
+        if exists and not open_existing:
+            return {
+                "success": False,
+                "conflict": True,
+                "error": "Case already exists",
+                "slug": slug,
+                "existing_case": existing_summary,
+                "suggested_slug": get_next_available_slug(slug),
+                "message": f"Case '{slug}' already exists on disk."
+            }
+
+        # 4. If open_existing requested
+        if open_existing:
+            try:
+                target = Target.load(slug)
+                self._target = target
+                self._emit("case_loaded", target.to_dict())
+                if switch_to_cold_room:
+                    self._emit("glide_to_coldroom", {})
+                return {"success": True, "action": "opened", "slug": slug}
+            except Exception as ex:
+                return {"success": False, "error": f"Failed to open existing case: {ex}"}
+
+        # 5. Create new case folder & commit staging images
+        case_dir = CASES_DIR / slug
+        case_dir.mkdir(parents=True, exist_ok=True)
+        uploads_dir = case_dir / "uploads"
+        uploads_dir.mkdir(parents=True, exist_ok=True)
+
+        moved_images = []
+        if session_id and _SESSION_ID_REGEX.match(session_id):
+            staging_dir = CASES_DIR / ".staging" / session_id
+            if staging_dir.exists() and staging_dir.is_dir():
+                for p in sorted(staging_dir.iterdir()):
+                    if p.is_file() and not p.name.startswith('.'):
+                        dest = uploads_dir / p.name
+                        shutil.move(str(p), str(dest))
+                        moved_images.append(str(dest))
+                shutil.rmtree(staging_dir, ignore_errors=True)
+
+        # 6. Extract and ground hints from narrative
+        grounded_hints = {}
+        if narrative:
+            try:
+                raw_brief = parse_brief_with_slm(narrative)
+                grounded_hints = ground_extracted_hints(raw_brief.hints, narrative, validated_identifiers)
+            except Exception as ex:
+                print(f"[desktop] Brief extraction notice: {ex}")
+                grounded_hints = {}
+
+        # 7. Create and persist Target
+        target = Target(
+            primary=primary_val,
+            target_type=primary_type,
+            case_title=case_title or None,
+            custom_slug=slug if slug != primary_val else None
+        )
+        target.brief = {
+            "narrative": narrative,
+            "location_hints": location_hints,
+            "time_frame": time_frame,
+            "identifiers": validated_identifiers,
+            "images": moved_images,
+            "hints": grounded_hints,
+        }
+        target.save()
+        self._target = target
+
+        # 8. Dispatch investigation pipeline
+        brief_obj = CaseBrief(raw_text=narrative, hints=grounded_hints) if narrative or grounded_hints else None
+        self._emit("scan_status", {
+            "message": f"Autonomous OSINT reconnaissance initiated — Target: {primary_val}",
+            "target": primary_val,
+            "is_investigation": True
+        })
+        if switch_to_cold_room:
+            self._emit("glide_to_coldroom", {})
+
+        threading.Thread(
+            target=self._run_stalk,
+            args=(primary_val, brief_obj),
+            daemon=True
+        ).start()
+
+        return {"success": True, "slug": slug}
 
     def _on_command_debrief(self, cmd: str, res: dict, task_id: str):
         """Dispatches an asynchronous closed-loop spoken debrief when a standalone terminal command completes."""
@@ -4094,6 +4536,13 @@ class JarvisAPI:
             "screenshot_url": shot,
             "avatar_path": entity.metadata.get("avatar_path"),
             "metadata": entity.metadata,
+            "discovered_from": (
+                entity.metadata.get("discovered_from")
+                or entity.metadata.get("parent_entity")
+                or (entity.metadata.get("related_to", {}).get("username") if isinstance(entity.metadata.get("related_to"), dict) else None)
+            ),
+            "corroborated_with": entity.metadata.get("corroborated_with", []),
+            "related_to": entity.metadata.get("related_to"),
         })
 
     async def _on_done(self, target, aborted=False):
@@ -5168,6 +5617,10 @@ def setup_jarvis_bottle_routes(app, server_root_path, api=None, server_uid=None,
     Enforces strict local static asset serving and deterministic 404 handling.
     """
     import bottle
+    try:
+        cleanup_stale_staging_folders()
+    except Exception as e:
+        print(f"[desktop] Bottle startup staging cleanup notice: {e}")
 
     if server_uid:
         @app.post(f'/js_api/{server_uid}')
@@ -5690,6 +6143,185 @@ def setup_jarvis_bottle_routes(app, server_root_path, api=None, server_uid=None,
         ok = ImageGeolocator().open_image_folder(image_path)
         return json.dumps({"success": ok})
 
+    def _handle_image_uploads(request, target_dir: Path):
+        target_dir.mkdir(parents=True, exist_ok=True)
+        existing_images = [p for p in target_dir.iterdir() if p.is_file() and not p.name.startswith('.')]
+
+        raw_items = []
+        if request.files:
+            for key in request.files.keys():
+                upload = request.files.get(key)
+                if upload:
+                    raw_bytes = upload.file.read()
+                    raw_items.append((raw_bytes, upload.raw_filename or upload.filename or "upload.jpg"))
+        elif request.json:
+            body = request.json
+            images_list = body.get('images', []) if isinstance(body, dict) else (body if isinstance(body, list) else [])
+            if isinstance(body, dict) and not images_list and 'data_url' in body:
+                images_list = [body]
+            for idx, item in enumerate(images_list):
+                data_url = item.get("data_url", "")
+                orig_name = item.get("filename", f"upload_{idx}.jpg")
+                if "," in data_url:
+                    data_url = data_url.split(",", 1)[1]
+                try:
+                    b = base64.b64decode(data_url)
+                    raw_items.append((b, orig_name))
+                except Exception as ex:
+                    bottle.response.status = 400
+                    return json.dumps({"success": False, "error": f"Invalid base64 encoding: {ex}"})
+
+        if not raw_items:
+            bottle.response.status = 400
+            return json.dumps({"success": False, "error": "No images provided"})
+
+        if len(existing_images) + len(raw_items) > 4:
+            bottle.response.status = 400
+            return json.dumps({"success": False, "error": f"Maximum 4 images allowed per case/session (currently {len(existing_images)}, adding {len(raw_items)})"})
+
+        results = []
+        for raw_bytes, orig_name in raw_items:
+            dest_path, sanitized_exif, err = _process_and_save_image(raw_bytes, target_dir)
+            if err or not dest_path:
+                bottle.response.status = 413 if "10MB" in (err or "") else 400
+                return json.dumps({"success": False, "error": err or "Failed to process image"})
+            results.append({
+                "filename": dest_path.name,
+                "path": str(dest_path),
+                "exif": sanitized_exif
+            })
+
+        return json.dumps({"success": True, "files": results})
+
+    @app.route('/api/staging/create_session', method=['POST', 'OPTIONS'])
+    def _bottle_staging_create_session():
+        if not _validate_local_origin_and_host(bottle.request):
+            return bottle.HTTPResponse(json.dumps({"error": "Forbidden - local access only"}), status=403, headers={'Content-Type': 'application/json'})
+        if bottle.request.method == 'OPTIONS':
+            return ""
+        bottle.response.content_type = 'application/json'
+        if api and hasattr(api, 'create_staging_session'):
+            res = api.create_staging_session()
+            if not res.get("success"):
+                bottle.response.status = 429 if "Maximum" in res.get("error", "") else 400
+            return json.dumps(res)
+        from core.target_model import CASES_DIR
+        staging_base = CASES_DIR / ".staging"
+        staging_base.mkdir(parents=True, exist_ok=True)
+        existing = [p for p in staging_base.iterdir() if p.is_dir() and _SESSION_ID_REGEX.match(p.name)]
+        if len(existing) >= 5:
+            cleanup_stale_staging_folders()
+            existing = [p for p in staging_base.iterdir() if p.is_dir() and _SESSION_ID_REGEX.match(p.name)]
+            if len(existing) >= 5:
+                bottle.response.status = 429
+                return json.dumps({"success": False, "error": "Maximum concurrent staging sessions reached"})
+        sid = secrets.token_hex(16)
+        (staging_base / sid).mkdir(parents=True, exist_ok=True)
+        return json.dumps({"success": True, "session_id": sid})
+
+    @app.route('/api/staging/<session_id>/uploads', method=['POST', 'OPTIONS'])
+    def _bottle_staging_uploads(session_id):
+        if not _validate_local_origin_and_host(bottle.request):
+            return bottle.HTTPResponse(json.dumps({"error": "Forbidden - local access only"}), status=403, headers={'Content-Type': 'application/json'})
+        if bottle.request.method == 'OPTIONS':
+            return ""
+        bottle.response.content_type = 'application/json'
+
+        if not _SESSION_ID_REGEX.match(session_id):
+            bottle.response.status = 400
+            return json.dumps({"success": False, "error": "Invalid session_id"})
+
+        if bottle.request.content_length and bottle.request.content_length > 40 * 1024 * 1024:
+            bottle.response.status = 413
+            return json.dumps({"success": False, "error": "Payload exceeds 40MB limit"})
+
+        from core.target_model import CASES_DIR
+        staging_base = CASES_DIR / ".staging"
+        staging_dir = staging_base / session_id
+
+        if not staging_dir.exists():
+            existing = [p for p in staging_base.iterdir() if p.is_dir() and _SESSION_ID_REGEX.match(p.name)]
+            if len(existing) >= 5:
+                cleanup_stale_staging_folders()
+                existing = [p for p in staging_base.iterdir() if p.is_dir() and _SESSION_ID_REGEX.match(p.name)]
+                if len(existing) >= 5:
+                    bottle.response.status = 429
+                    return json.dumps({"success": False, "error": "Maximum concurrent staging sessions reached"})
+            staging_dir.mkdir(parents=True, exist_ok=True)
+
+        return _handle_image_uploads(bottle.request, staging_dir)
+
+    @app.route('/api/staging/<session_id>/cancel', method=['POST', 'OPTIONS'])
+    def _bottle_staging_cancel(session_id):
+        if not _validate_local_origin_and_host(bottle.request):
+            return bottle.HTTPResponse(json.dumps({"error": "Forbidden - local access only"}), status=403, headers={'Content-Type': 'application/json'})
+        if bottle.request.method == 'OPTIONS':
+            return ""
+        bottle.response.content_type = 'application/json'
+
+        if not _SESSION_ID_REGEX.match(session_id):
+            bottle.response.status = 400
+            return json.dumps({"success": False, "error": "Invalid session_id"})
+
+        if api and hasattr(api, 'cancel_staging_session'):
+            return json.dumps(api.cancel_staging_session(session_id))
+
+        from core.target_model import CASES_DIR
+        staging_dir = CASES_DIR / ".staging" / session_id
+        if staging_dir.exists():
+            shutil.rmtree(staging_dir, ignore_errors=True)
+        return json.dumps({"success": True})
+
+    @app.route('/api/cases/<slug>/uploads', method=['POST', 'OPTIONS'])
+    def _bottle_case_uploads(slug):
+        if not _validate_local_origin_and_host(bottle.request):
+            return bottle.HTTPResponse(json.dumps({"error": "Forbidden - local access only"}), status=403, headers={'Content-Type': 'application/json'})
+        if bottle.request.method == 'OPTIONS':
+            return ""
+        bottle.response.content_type = 'application/json'
+
+        safe_slug = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', slug).strip('._-')
+        if not safe_slug or ".." in slug:
+            bottle.response.status = 400
+            return json.dumps({"success": False, "error": "Invalid case slug"})
+
+        if bottle.request.content_length and bottle.request.content_length > 40 * 1024 * 1024:
+            bottle.response.status = 413
+            return json.dumps({"success": False, "error": "Payload exceeds 40MB limit"})
+
+        from core.target_model import CASES_DIR
+        case_dir = CASES_DIR / safe_slug
+        uploads_dir = case_dir / "uploads"
+        uploads_dir.mkdir(parents=True, exist_ok=True)
+
+        return _handle_image_uploads(bottle.request, uploads_dir)
+
+    @app.route('/api/cases/start_brief', method=['POST', 'OPTIONS'])
+    def _bottle_cases_start_brief():
+        if not _validate_local_origin_and_host(bottle.request):
+            return bottle.HTTPResponse(json.dumps({"error": "Forbidden - local access only"}), status=403, headers={'Content-Type': 'application/json'})
+        if bottle.request.method == 'OPTIONS':
+            return ""
+        bottle.response.content_type = 'application/json'
+
+        body = bottle.request.json or {}
+        if api and hasattr(api, 'start_brief_investigation'):
+            res = api.start_brief_investigation(body)
+            if not res.get("success"):
+                if res.get("conflict"):
+                    bottle.response.status = 409
+                else:
+                    bottle.response.status = 400
+            return json.dumps(res)
+        curr_api = JarvisAPI(None)
+        res = curr_api.start_brief_investigation(body)
+        if not res.get("success"):
+            if res.get("conflict"):
+                bottle.response.status = 409
+            else:
+                bottle.response.status = 400
+        return json.dumps(res)
+
     @app.route('/cases/<case_path:path>')
     def serve_case_evidence(case_path):
         import mimetypes
@@ -5698,8 +6330,8 @@ def setup_jarvis_bottle_routes(app, server_root_path, api=None, server_uid=None,
         pure_path = (case_path.split('?')[0] if case_path else "").strip()
         safe_path = os.path.normpath(pure_path).lstrip(os.sep)
 
-        # Strict directory traversal defense
-        if ".." in safe_path or safe_path.startswith("..") or os.path.isabs(safe_path):
+        # Strict directory traversal defense & dot-path protection
+        if ".." in safe_path or safe_path.startswith("..") or os.path.isabs(safe_path) or any(part.startswith('.') for part in Path(safe_path).parts):
             return bottle.HTTPResponse("Forbidden", status=403)
 
         candidate_bases = [

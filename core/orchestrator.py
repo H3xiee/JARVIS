@@ -4,6 +4,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
 import asyncio
 import inspect
+import re
+from typing import Optional, Dict, Any
 from core.input_parser import parse
 from core.target_model import Target, Entity
 from core.case_brief import CaseBrief, InvestigationPlan
@@ -57,7 +59,22 @@ class Orchestrator:
             self.task_id = task_id
 
         parsed = parse(raw_input)
-        target = Target(primary=parsed.value, target_type=parsed.target_type)
+        existing_target = None
+        try:
+            clean_slug = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', parsed.value).strip('._-')
+            if clean_slug:
+                existing_target = Target.load(clean_slug)
+        except Exception:
+            existing_target = None
+
+        if existing_target:
+            target = existing_target
+            if brief and not target.brief:
+                target.brief = {"narrative": brief.raw_text, "hints": brief.hints}
+        else:
+            target = Target(primary=parsed.value, target_type=parsed.target_type)
+            if brief:
+                target.brief = {"narrative": brief.raw_text, "hints": brief.hints}
         self._report_task_progress(5, f"Target locked: {parsed.value} ({parsed.target_type})")
 
         try:
@@ -99,6 +116,8 @@ class Orchestrator:
                     hints_source = plan
                 elif brief and brief.hints:
                     hints_source = brief
+                elif target.brief and target.brief.get("hints"):
+                    hints_source = CaseBrief(raw_text=target.brief.get("narrative", ""), hints=target.brief.get("hints", {}))
 
                 if hints_source:
                     await self._brief_driven_pivot(target, parsed, hints_source)

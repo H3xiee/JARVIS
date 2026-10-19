@@ -9,7 +9,7 @@ import re
 import subprocess
 from typing import Dict, List
 from core.tool_locator import find_tool, build_subprocess_env
-from core.config import CONFIG_KEY_SPECS, is_key_configured
+from core.config import CONFIG_KEY_SPECS, is_key_configured, get_config
 
 
 def extract_tool_version(tool_path: str, env: dict) -> str:
@@ -91,8 +91,16 @@ def run_doctor() -> None:
 
     print("\nOptional API Keys:")
     for key in CONFIG_KEY_SPECS:
+        if key in ("AUTO_OPEN_COLD_ROOM", "ALWAYS_CONFIRM_INVESTIGATIONS"):
+            continue
         cfg = "YES" if is_key_configured(key) else "NO"
         print(f"  {key}: Configured: {cfg}")
+
+    print("\nUI Configuration:")
+    confirm_cfg = "YES" if get_config("ALWAYS_CONFIRM_INVESTIGATIONS", False) else "NO"
+    print(f"  ALWAYS_CONFIRM_INVESTIGATIONS: {confirm_cfg}")
+    cold_room_cfg = "YES" if get_config("AUTO_OPEN_COLD_ROOM", True) else "NO"
+    print(f"  AUTO_OPEN_COLD_ROOM: {cold_room_cfg}")
 
     print("\nHeadless Browser (Playwright):")
     try:

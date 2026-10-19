@@ -214,6 +214,14 @@ async def correlate(target: Target) -> int:
                     mult = MULTIPLIERS["name_match"]
                     entity_a.confidence = min(entity_a.confidence * mult, 0.99)
                     entity_b.confidence = min(entity_b.confidence * mult, 0.99)
+                    entity_a.metadata.setdefault("corroborated_with", []).append({
+                        "value": entity_b.value,
+                        "signal": "name_match",
+                    })
+                    entity_b.metadata.setdefault("corroborated_with", []).append({
+                        "value": entity_a.value,
+                        "signal": "name_match",
+                    })
                     target.log("correlation_found", {
                         "entity_a": get_entity_id(entity_a),
                         "entity_b": get_entity_id(entity_b),
@@ -232,6 +240,14 @@ async def correlate(target: Target) -> int:
                     mult = MULTIPLIERS["bio_match"]
                     entity_a.confidence = min(entity_a.confidence * mult, 0.99)
                     entity_b.confidence = min(entity_b.confidence * mult, 0.99)
+                    entity_a.metadata.setdefault("corroborated_with", []).append({
+                        "value": entity_b.value,
+                        "signal": "bio_match",
+                    })
+                    entity_b.metadata.setdefault("corroborated_with", []).append({
+                        "value": entity_a.value,
+                        "signal": "bio_match",
+                    })
                     target.log("correlation_found", {
                         "entity_a": get_entity_id(entity_a),
                         "entity_b": get_entity_id(entity_b),
@@ -250,6 +266,14 @@ async def correlate(target: Target) -> int:
                     mult = MULTIPLIERS["avatar_match"]
                     entity_a.confidence = min(entity_a.confidence * mult, 0.99)
                     entity_b.confidence = min(entity_b.confidence * mult, 0.99)
+                    entity_a.metadata.setdefault("corroborated_with", []).append({
+                        "value": entity_b.value,
+                        "signal": "avatar_match",
+                    })
+                    entity_b.metadata.setdefault("corroborated_with", []).append({
+                        "value": entity_a.value,
+                        "signal": "avatar_match",
+                    })
                     target.log("correlation_found", {
                         "entity_a": get_entity_id(entity_a),
                         "entity_b": get_entity_id(entity_b),
@@ -268,6 +292,14 @@ async def correlate(target: Target) -> int:
                     mult = MULTIPLIERS["location_match"]
                     entity_a.confidence = min(entity_a.confidence * mult, 0.99)
                     entity_b.confidence = min(entity_b.confidence * mult, 0.99)
+                    entity_a.metadata.setdefault("corroborated_with", []).append({
+                        "value": entity_b.value,
+                        "signal": "location_match",
+                    })
+                    entity_b.metadata.setdefault("corroborated_with", []).append({
+                        "value": entity_a.value,
+                        "signal": "location_match",
+                    })
                     target.log("correlation_found", {
                         "entity_a": get_entity_id(entity_a),
                         "entity_b": get_entity_id(entity_b),

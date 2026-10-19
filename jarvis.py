@@ -20,6 +20,17 @@ if any(arg in sys.argv[1:] for arg in ("doctor", "--doctor")):
     run_doctor()
     sys.exit(0)
 
+# Handle general help without importing GUI backends or starting threads
+if any(arg in sys.argv[1:] for arg in ("-h", "--help", "help")) and not (len(sys.argv) > 1 and sys.argv[1] in ("calibrate", "--calibrate")):
+    from core.calibration import print_jarvis_help
+    print_jarvis_help()
+    sys.exit(0)
+
+# Handle calibration command early without importing GUI backends or starting threads
+if len(sys.argv) > 1 and sys.argv[1] in ("calibrate", "--calibrate"):
+    from core.calibration import parse_and_run_calibration
+    sys.exit(parse_and_run_calibration(sys.argv[2:]))
+
 # Check for GUI backend bindings (GTK / Qt)
 def _needs_gui_fallback():
     try:
@@ -104,6 +115,15 @@ def main():
         run_doctor()
         return
 
+    if args and args[0] in ("calibrate", "--calibrate"):
+        from core.calibration import parse_and_run_calibration
+        sys.exit(parse_and_run_calibration(args[1:]))
+
+    if any(arg in args for arg in ("-h", "--help", "help")):
+        from core.calibration import print_jarvis_help
+        print_jarvis_help()
+        return
+
     boot_checks()
 
     if "--hud" in args or "--mini" in args or "--pill" in args or "--voiceos" in args:
@@ -117,8 +137,6 @@ def main():
         cli = JarvisCLI()
         cli._resume(args[1])
         cli._loop()
-    elif args and args[0] in ("-h", "--help"):
-        launch_cli()
     else:
         launch_desktop()
 

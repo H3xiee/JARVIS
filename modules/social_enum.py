@@ -38,7 +38,7 @@ def _update_browser_unavailable_note(target: Target):
         target.notes.append(new_note)
 
 
-async def run(target: Target, username: str, on_find=None, lessons_store=None) -> None:
+async def run(target: Target, username: str, on_find=None, lessons_store=None, canary_context=None) -> None:
     clean_user = sanitize_username(username)
     if not clean_user:
         note = f"Username '{username}' contains no valid characters, skipped"
@@ -46,10 +46,13 @@ async def run(target: Target, username: str, on_find=None, lessons_store=None) -
         target.notes.append(note)
         return
 
+    if canary_context is None:
+        canary_context = {}
+
     initial_count = len([e for e in target.entities if e.entity_type == "username" and e.value == clean_user])
 
-    await _run_sherlock(target, clean_user, on_find, lessons_store)
-    await _run_maigret(target, clean_user, on_find, lessons_store)
+    await _run_sherlock(target, clean_user, on_find, lessons_store, canary_context=canary_context)
+    await _run_maigret(target, clean_user, on_find, lessons_store, canary_context=canary_context)
 
     post_count = len([e for e in target.entities if e.entity_type == "username" and e.value == clean_user])
     if post_count == initial_count:
@@ -68,7 +71,7 @@ async def run(target: Target, username: str, on_find=None, lessons_store=None) -
     _update_browser_unavailable_note(target)
 
 
-async def _run_sherlock(target, username, on_find, lessons_store=None):
+async def _run_sherlock(target, username, on_find, lessons_store=None, canary_context=None):
     sherlock_bin = find_tool("sherlock")
     if not sherlock_bin:
         note = "sherlock not found on PATH or in ~/.local/bin, skipped"
@@ -119,7 +122,7 @@ async def _run_sherlock(target, username, on_find, lessons_store=None):
                     )
                     # Verify before trusting
                     case_slug = target.case_slug
-                    entity = await verify_hit(entity, lessons_store=lessons_store, case_slug=case_slug)
+                    entity = await verify_hit(entity, lessons_store=lessons_store, case_slug=case_slug, canary_context=canary_context)
                     if entity.metadata.get("verified") is False:
                         target.add_rejected_entity(entity)
                     else:
@@ -136,7 +139,7 @@ async def _run_sherlock(target, username, on_find, lessons_store=None):
         target.notes.append(note)
 
 
-async def _run_maigret(target, username, on_find, lessons_store=None):
+async def _run_maigret(target, username, on_find, lessons_store=None, canary_context=None):
     maigret_bin = find_tool("maigret")
     if not maigret_bin:
         note = "maigret not found on PATH or in ~/.local/bin, skipped"
@@ -205,7 +208,7 @@ async def _run_maigret(target, username, on_find, lessons_store=None):
                         )
                         # Verify before trusting
                         case_slug = target.case_slug
-                        entity = await verify_hit(entity, lessons_store=lessons_store, case_slug=case_slug)
+                        entity = await verify_hit(entity, lessons_store=lessons_store, case_slug=case_slug, canary_context=canary_context)
                         if entity.metadata.get("verified") is False:
                             target.add_rejected_entity(entity)
                         else:

@@ -365,6 +365,7 @@ All actions can be triggered via slash commands or natural language:
 | `cases` | `/cases`, `list` | List all archived cases and saved sessions | `cases` |
 | `notes` | `/notes`, `add` | Append investigative note or task reminder | `notes <text>` |
 | `export` | `/export`, `report` | Generate offline HTML investigation dossier | `export` |
+| `calibrate` | `/calibrate` | Measure false-positive rate on random nonexistent usernames | `calibrate [--count N] [--no-control] [--apply-lessons] [--out PATH]` |
 | `help` | `/?`, `info` | Display command guide and available modules | `help` |
 | `exit` | `quit` | Exit workspace | `exit` |
 

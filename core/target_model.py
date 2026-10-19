@@ -59,7 +59,10 @@ class Breach:
 @dataclass
 class Target:
     primary: str
-    target_type: str
+    target_type: str = "username"
+    case_title: Optional[str] = None
+    custom_slug: Optional[str] = None
+    brief: Optional[Dict[str, Any]] = None
     opened_at: str = field(default_factory=lambda: datetime.now().isoformat())
     last_updated: str = field(default_factory=lambda: datetime.now().isoformat())
     entities: List[Entity] = field(default_factory=list)
@@ -151,6 +154,14 @@ class Target:
 
     @property
     def case_slug(self) -> str:
+        if self.custom_slug:
+            s = str(self.custom_slug).replace("\x00", "")
+            while ".." in s:
+                s = s.replace("..", "")
+            s = s.replace("/", "_").replace("\\", "_")
+            s = re.sub(r"[^a-zA-Z0-9_\-\.\+]", "_", s).strip()
+            if s and s not in (".", ".."):
+                return s
         s = str(self.primary or "").replace("\x00", "")
         while ".." in s:
             s = s.replace("..", "")
@@ -163,8 +174,11 @@ class Target:
 
     def to_dict(self) -> Dict:
         return {
+            "case_title": self.case_title,
+            "custom_slug": self.custom_slug,
             "primary": self.primary,
             "target_type": self.target_type,
+            "brief": self.brief,
             "opened_at": self.opened_at,
             "last_updated": self.last_updated,
             "risk_score": self.risk_score,
@@ -175,7 +189,9 @@ class Target:
             "timeline": self.timeline,
         }
 
-    def save(self, cases_dir: Path = CASES_DIR):
+    def save(self, cases_dir: Optional[Path] = None):
+        if cases_dir is None:
+            cases_dir = CASES_DIR
         folder = cases_dir / self.case_slug
         folder.mkdir(parents=True, exist_ok=True)
         self.compute_risk()
@@ -185,28 +201,43 @@ class Target:
         return folder
 
     @classmethod
-    def load(cls, target: str, cases_dir: Path = CASES_DIR):
+    def load(cls, target: str, cases_dir: Optional[Path] = None):
+        if cases_dir is None:
+            cases_dir = CASES_DIR
+        if not target or target.startswith("."):
+            return None
         # We slugify target directly
         slug = target.replace("@", "_").replace(".", "_").replace(" ", "_")
         path = cases_dir / slug / "case.json"
         if not path.exists():
             for case_file in cases_dir.glob("*/case.json"):
+                if case_file.parent.name.startswith("."):
+                    continue
                 try:
                     data = json.loads(case_file.read_text())
-                    if data["primary"] == target:
+                    if data.get("primary") == target or data.get("custom_slug") == target:
                         path = case_file
                         break
                 except:
                     pass
         if not path.exists():
-            raise FileNotFoundError(f"No case found for: {target}")
+            return None
         data = json.loads(path.read_text())
-        t = cls(primary=data["primary"], target_type=data["target_type"])
-        t.opened_at = data["opened_at"]
-        t.risk_score = data["risk_score"]
-        t.notes = data["notes"]
-        t.timeline = data["timeline"]
-        t.entities = [Entity(**e) for e in data["entities"]]
-        t.rejected_entities = [Entity(**e) for e in data.get("rejected_entities", [])]
-        t.breaches = [Breach(**b) for b in data["breaches"]]
+        t = cls(
+            primary=data.get("primary", target),
+            target_type=data.get("target_type", "username"),
+            case_title=data.get("case_title"),
+            custom_slug=data.get("custom_slug"),
+            brief=data.get("brief"),
+        )
+        t.opened_at = data.get("opened_at", datetime.now().isoformat())
+        t.risk_score = data.get("risk_score", data.get("overall_risk_score", 0.0))
+        t.notes = data.get("notes", [])
+        t.timeline = data.get("timeline", [])
+        raw_entities = data.get("entities", [])
+        if isinstance(raw_entities, dict):
+            raw_entities = list(raw_entities.values())
+        t.entities = [Entity(**e) if isinstance(e, dict) else Entity(entity_type="unknown", value=str(e)) for e in raw_entities]
+        t.rejected_entities = [Entity(**e) if isinstance(e, dict) else Entity(entity_type="unknown", value=str(e)) for e in data.get("rejected_entities", [])]
+        t.breaches = [Breach(**b) if isinstance(b, dict) else Breach(source=str(b)) for b in data.get("breaches", [])]
         return t

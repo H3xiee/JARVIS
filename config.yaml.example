@@ -66,6 +66,7 @@ ui:
   mode: desktop
   theme: warm_cream
   auto_open_cold_room: true
+  always_confirm_investigations: false # If true, explicit commands ("investigate X") open the Investigation Brief confirmation modal
 
 # ── Voice Activation & Continued-Conversation Pipeline ───────────
 audio_pipeline:
