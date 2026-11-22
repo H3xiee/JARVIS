@@ -95,6 +95,13 @@ class Provenance:
     def has_untrusted(self) -> bool:
         return bool(self._untrusted)
 
+    def seen_literal(self, literal: str) -> bool:
+        """Did this exact string appear anywhere this run (trusted or not)? Used for URLs:
+        following a link from a search result is fine; a URL the model assembled
+        itself (and could have packed data into) is not."""
+        lit = str(literal or "").lower().strip()
+        return bool(lit) and any(lit in t for t in self._trusted + self._untrusted)
+
     def trusted_mentions(self, literal: str) -> bool:
         """Did trusted text contain this exact string (e.g. a file path the operator typed)?"""
         lit = str(literal or "").lower().strip()

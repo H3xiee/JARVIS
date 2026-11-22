@@ -137,8 +137,32 @@ class Snapshot:
     weak_tools: List[str] = field(default_factory=list)
 
     def busy(self) -> bool:
-        """Should routine announcements wait?"""
+        """Is the operator occupied (meeting / quiet mode)?"""
         return bool(self.quiet_mode or self.in_meeting)
+
+    @property
+    def away(self) -> bool:
+        """Nobody at the computer (the watchdog's idle threshold): speaking now talks to an empty room."""
+        return bool(self.is_idle)
+
+    def hold_reason(self, event: Dict[str, Any]) -> Optional[str]:
+        """The one 'is this a good moment?' check in front of proactive output.
+
+        None = deliver now. Critical events always go through; time-sensitive ones
+        ("your meeting starts in 5 minutes") go through a meeting or quiet mode but
+        are pointless to an empty room, so they wait for the operator's return too.
+        """
+        if (event or {}).get("severity") == "critical":
+            return None
+        if self.away:
+            return "away"
+        if (event or {}).get("timely"):
+            return None
+        if self.in_meeting:
+            return "in_meeting"
+        if self.quiet_mode:
+            return "quiet_mode"
+        return None
 
     def context_lines(self) -> List[str]:
         bits = [f"Operator's local time: {self.local_time}."]

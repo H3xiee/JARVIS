@@ -1,12 +1,26 @@
 import os
 import json
 import time
+from datetime import datetime, timezone
 
 MEMORY_FILE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "jarvis_memory.json")
+HISTORY_LOG_MAX = 500  # inline history entries kept; older ones move to the archive file (and live on in data/memory/)
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _bridge():
+    from memory.core import legacy_bridge
+    return legacy_bridge
 
 class JarvisMemory:
     def __init__(self, filepath=MEMORY_FILE_PATH):
         self.filepath = filepath
+        # Writes are mirrored into the unified memory database only for the real file (never a test copy).
+        self._mirror = os.path.abspath(filepath) == os.path.abspath(MEMORY_FILE_PATH)
+        self.archive_path = os.path.splitext(filepath)[0] + ".history_archive.jsonl"
         self._ensure_file()
 
     def _ensure_file(self):
@@ -108,6 +122,8 @@ class JarvisMemory:
         if note not in patterns:
             patterns.append(note)
             self._save(mem)
+            if self._mirror:
+                _bridge().speech_pattern(note)
 
     def log_failure_lesson(self, failure_and_lesson: str):
         mem = self.load_memory()
@@ -115,6 +131,8 @@ class JarvisMemory:
         if failure_and_lesson not in lessons:
             lessons.append(failure_and_lesson)
             self._save(mem)
+            if self._mirror:
+                _bridge().failure_lesson(failure_and_lesson)
 
     def register_learned_skill(self, skill_name: str, description: str, trigger: str, code_snippet: str = ""):
         mem = self.load_memory()
@@ -126,15 +144,19 @@ class JarvisMemory:
                 if code_snippet:
                     s["code"] = code_snippet
                 self._save(mem)
+                if self._mirror:
+                    _bridge().learned_skill(skill_name, description, trigger)
                 return
         skills.append({
             "name": skill_name,
             "description": description,
             "trigger": trigger,
             "code": code_snippet,
-            "created_at": time.strftime("%Y-%m-%d %H:%M:%S")
+            "created_at": _utc_now()
         })
         self._save(mem)
+        if self._mirror:
+            _bridge().learned_skill(skill_name, description, trigger)
 
     def get_salutation(self) -> str:
         mem = self.load_memory()
@@ -166,6 +188,8 @@ class JarvisMemory:
         new_patterns.insert(0, f"Always address the operator as '{clean_sal}'.")
         mem["user_speech_patterns"] = new_patterns
         self._save(mem)
+        if self._mirror:
+            _bridge().salutation(clean_sal)
         return clean_sal
 
     def get_recent_speech_patterns(self, limit: int = 5) -> list:
@@ -212,6 +236,8 @@ class JarvisMemory:
             patterns.append(rule_desc)
 
         self._save(mem)
+        if self._mirror:
+            _bridge().custom_rule(clean)
 
         # Also sync to LessonsStore so semantic RAG / false-positive memory has it (updates in place)
         try:
@@ -231,13 +257,30 @@ class JarvisMemory:
             return False
         mem = self.load_memory()
         history = mem.setdefault("history_log", [])
+        at = _utc_now()
         history.append({
             "category": category,
             "entry": text,
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+            "timestamp": at
         })
+        if len(history) > HISTORY_LOG_MAX:
+            overflow = history[:-HISTORY_LOG_MAX]
+            if self._archive(overflow):  # only trim what was safely written to the archive
+                mem["history_log"] = history[-HISTORY_LOG_MAX:]
         self._save(mem)
+        if self._mirror:
+            _bridge().history_entry(category, text, at)
         return True
+
+    def _archive(self, entries) -> bool:
+        try:
+            with open(self.archive_path, "a", encoding="utf-8") as f:
+                for e in entries:
+                    f.write(json.dumps(e, ensure_ascii=False) + "\n")
+            return True
+        except OSError as e:
+            print(f"[JarvisMemory] Could not archive history: {e}")
+            return False
 
     def get_memory_summary_for_prompt(self):
         mem = self.load_memory()
@@ -259,8 +302,10 @@ class JarvisMemory:
 
     def _save(self, data):
         try:
-            with open(self.filepath, "w", encoding="utf-8") as f:
+            tmp = self.filepath + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
+            os.replace(tmp, self.filepath)  # atomic: a crash mid-write never leaves a half file
         except Exception as e:
             print(f"[JarvisMemory] Error saving memory: {e}")
 

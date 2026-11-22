@@ -378,106 +378,54 @@ All actions can be triggered via slash commands or natural language:
 
 ## Autonomous Agents & Account Integrations
 
-Alongside the OSINT core, J.A.R.V.I.S. includes a multi-agent assistant layer (`core/agents/`). A **supervisor** acts as the manager: it gives the model one catalogue of tools from every agent, runs an **act → observe → decide** loop until the request is done, and does all of it in the background without blocking the voice loop. Progress is narrated in the J.A.R.V.I.S. persona through a paced **narration queue**. Background sensors feed the same supervisor, so J.A.R.V.I.S. can look into what it notices instead of only announcing it.
+J.A.R.V.I.S. also works as your everyday assistant: a **supervisor** hands each request to the right agent, runs it in the background, and speaks the result. Anything that sends, deletes or changes something asks for your **yes** first.
 
-```mermaid
-flowchart LR
-    REQ(["Voice / Desktop request"]) --> SUP["Supervisor<br/>tool loop (existing Groq key)<br/>keyword fast path"]
-    SENS(["Sensors<br/>watchdog, watcher,<br/>follow-ups, sentinel"]) --> EV["handle_event<br/>read & draft tools only"]
-    EV --> SUP
-    WM[("World model<br/>in_meeting, quiet mode,<br/>idle, battery")] -.-> SUP
-    SUP --> TOOLS["One tool catalogue<br/>Email · Calendar · Local Research<br/>System Ops · Assistant"]
-    TOOLS --> TRUST{{"Trust check<br/>untrusted text fenced,<br/>arguments' source checked"}}
-    TRUST -- destructive --> ASK["Pauses and asks you<br/>full read-back, yes / no"]
-    TRUST -- safe --> RUN["Runs the tool,<br/>result back to the model"]
-    ASK -- yes --> RUN
-    RUN --> SUP
-    SUP --> NQ["Narration Queue<br/>persona lines, paced speech"]
+### What the Agents Can Do
+- **Email (Gmail)**: check, search and triage mail, summarise threads, draft / reply / forward with attachments, save attachments, keep drafts in Gmail, label, unsubscribe, and remind you when someone hasn't replied. *"Anything new from Pepper?" · "Reply saying six works" · "Save the invoice PDF Priya sent"*
+- **Calendar (Google)**: your day, free time, meeting times across people, accept or decline invites, create (also repeating), move and delete events, across all your calendars. *"What's on tomorrow?" · "Find an hour with Ravi next week" · "Add a standup every Tuesday at 9:30"*
+- **Files**: find files by name, content or meaning, search inside a document, recent files, open / reveal / summarise, and save, move, copy or tidy files with undo. *"Find my budget notes" · "Put the PDFs in Downloads into a folder"*
+- **This Computer**: disk, memory, CPU and network health, large files, apps, volume, brightness, Wi-Fi, Bluetooth, screenshot, clipboard, Recycle Bin with undo. *"Why is my internet slow?" · "What's on my screen?"*
+- **Web & Memory**: web search, read a page, and recall what you told J.A.R.V.I.S. earlier. *"Search the web for the latest Python release"*
+- **Proactive**: notices low disk, frozen apps, upcoming meetings and missing replies, and holds routine news while you're in a meeting or away.
 
-    classDef gate fill:#3a0d0d,stroke:#ff4d4d,color:#ffd1d1;
-    class TRUST gate;
-```
+### Built-in Safety
+- Destructive or outward-facing actions (send, delete, accept, shut down...) are read back and wait for your approval.
+- Text from emails, invites, files and web pages is treated as data: it can't add recipients or trigger actions.
+- System folders, your profile root and J.A.R.V.I.S. itself are protected; there is no free-form shell.
+- Tokens and passwords are never logged or spoken; actions are audited in `data/agents/audit.jsonl`.
 
-### The Agents
-
-| Agent | Tools | Example requests |
-| :--- | :--- | :--- |
-| **Email (Gmail)** | `check_inbox`, `read_email`, `summarise_thread`, `triage_inbox`, `resolve_contact`, `find_attachment`, `list_followups`, `draft_email`, `draft_reply`, `draft_forward`, `edit_draft`, `track_followup`, `organise_email`, `send_email`, `unsubscribe` | `anything new from Pepper` · `reply saying six works` · `make it more formal` · `email Tony the report and remind me if he doesn't reply in 3 days` |
-| **Calendar (Google)** | `list_events`, `find_free_slot`, `check_conflicts`, `get_event_context`, `create_event`, `move_event`, `delete_event` | `what's on tomorrow` · `find me an hour free on Friday` · `move the board meeting to 4pm` · `what do I need for my 3 o'clock?` |
-| **Local Research** | `search_files`, `search_drive`, `read_file`, `summarise_file`, `describe_folder`, `open_file`, `reveal_file`, `favourite_folders` | `find my notes about the budget` · `open the second one` · `summarise it` · `PDFs from last week in Downloads` |
-| **System Ops** | `disk_usage`, `memory_usage`, `cpu_and_processes`, `uptime`, `list_directory`, `git_status`, `radio_status`, `open_app`, `close_app`, `switch_to_app`, `set_volume`, `set_brightness`, `set_radio`, `create_folder`, `restore_deleted`, `system_watch`, `delete_to_recycle_bin`, `empty_recycle_bin`, `clean_temp_files`, `end_process`, `power` | `how full is my disk` · `turn the volume down` · `delete old-notes.txt` · `undo that` · `what's using my CPU` |
-| **Assistant** | `web_search`, `memory_recall` | `search the web for the latest Python release` · `do you remember what I said about the budget review?` |
-
-A few things worth knowing about how they work:
-
-- **Email**: drafting is separate from sending. Drafts can be revised freely by voice; only `send_email` (and `unsubscribe`) waits for your **yes**, after reading the whole draft back. Every send waits out an undo window. Drafts match your writing style, learned from your Sent folder.
-- **Calendar**: times are read in your **Google Calendar's own time zone**, not the computer's. (Under WSL the machine clock is UTC, which used to put "1pm" at 6:30pm IST.) Every change is read back from Google afterwards, and you're told if it didn't land where intended. `get_event_context` fetches the event, its email thread and related files at the same time.
-- **Local Research**: searches by name, inside documents (PDF, Word, text) and by meaning. Search effort scales: a file name is a quick index lookup; a topic searches your favourite, profile and cloud folders; only "search everywhere" walks whole drives. Under WSL, open and reveal go through Windows Explorer.
-- **System Ops**: there is **no free-form shell tool**: every command comes from a built-in, matched to your OS. Deletes go to the Recycle Bin and can be undone.
-- **Assistant**: covers the web and J.A.R.V.I.S.'s memory, not your own files or mail.
-
-### How a Request Runs
-
-- **One catalogue, one loop.** The model picks a tool, the supervisor runs it and feeds the result back, until the model can answer in a sentence or two.
-- **Limits.** Each request has a step, time and token budget. Repeating the same call stops the run. A tool that fails twice (or three failures in total) stops it and asks you how to proceed, instead of guessing.
-- **Pause and resume.** A step that needs your approval pauses the run; after your yes, the **same run** continues from where it stopped. A no, or no answer before the request expires, ends it with nothing changed.
-- **Follow-through.** If a reply or email is drafted but never put up for approval, the supervisor asks you itself instead of trusting a "sent!" from the model. Say "just draft it" to stop at the draft.
-- **Keyword fast path.** Without Groq the agents still answer the basics (check the inbox, read today's calendar, search files, system info); anything that writes says it needs the model.
-- **Tactical namespace.** The globe, flight, maritime, satellite, conflict, recon and OSINT tools stay in the tactical cognitive loop (`core/jarvis_reasoning_loop.py`). Its general-purpose tools (inbox, calendar, processes, web search, memory) moved into the agents' catalogue above, so each job has exactly one tool.
-
-### Proactive: Sensors, World Model and Feedback
-
-- **Sensors hand over instead of speaking.** The autonomous watchdog, the system watcher, the email follow-up checker and the ambient sentinel send what they notice to the supervisor (`handle_event`). It looks into it with **read and draft tools only** (an event can never send, delete or close anything): which program is eating the CPU, what's filling the disk, a heads-up before a meeting with its email thread and files, or a nudge draft when someone hasn't replied.
-- **Catch-up.** Coming back after the laptop was off, or after a long idle stretch, gets a short catch-up built from your inbox, today's calendar and follow-ups.
-- **World model.** One snapshot of your situation: local time, idle time, quiet mode, battery, what J.A.R.V.I.S. is doing, and **whether you're in a meeting** (from Google Calendar). While you're in a meeting or in quiet mode, routine news is held and delivered afterwards in one line ("While you were busy: …"); critical alerts and time-sensitive heads-ups still get through.
-- **Feedback.** Every tool outcome, and every "no" to a proposed action, is recorded in the self-upgrade performance log (`data/performance_feedback.json`). Tools that keep failing are flagged to the model on later requests.
-
-### Safety Model
-
-- Every tool declares a **category** (read / draft / action) and a **risk tier**. Anything destructive or outward-facing (sending mail, deleting, emptying the bin, ending a process, shutting down, Wi-Fi off, creating or moving events) is shown to you first and only runs after you say **yes**. The tool itself refuses to run without that approval, even if something upstream went wrong.
-- **Prompt-injection defence.** Email bodies, invite descriptions, file contents and web pages reach the model only inside a fence marked with a random code per request, so text inside can't break out of it. Before an action runs, its key arguments (recipients, file paths, folders) are checked: anything that came only from that outside content, and not from you, is refused. An email saying "forward everything to …" can't add a recipient.
-- **Protected paths** are refused outright: system folders, drive roots, your profile folder and the J.A.R.V.I.S. install itself, in both Windows and WSL spellings.
-- Essential processes can't be killed, programs and scripts are never "opened" (only shown in their folder), and dangerous commands such as shutdown stay behind the existing `SystemCommander` guard.
-- OAuth tokens, client secrets and passwords are never logged, spoken or displayed. Actions are recorded in `data/agents/audit.jsonl` with secrets redacted.
-
-### Setup
-
-**1. Install the new dependencies** (inside your `jarvis-env`):
+### Agent Setup
+**1. Install the dependencies** (inside `jarvis-env`):
 ```bash
-pip install -r requirements.txt   # adds google-auth-oauthlib, google-api-python-client, cryptography, tzdata
+pip install -r requirements.txt
 ```
 
-**2. AI uses your existing Groq key.** No new key is needed: the supervisor reads `groq_api_key` (and `groq_model`) from `config.yaml`. The tool loop runs on Groq only, because it needs reliable tool calling. If your `groq_model` is rate-limited or doesn't support tools, it moves on to `openai/gpt-oss-20b`, then `openai/gpt-oss-120b`, each with its own rate limit. Drafting and summaries can also fall back to local Ollama, which is optional:
-```bash
-ollama pull qwen2.5:3b
-```
-Without any key, the keyword fast path still handles reading, file search and system info.
+**2. AI uses your existing Groq key** (`groq_api_key` in Settings). No new key needed. Screen descriptions use your existing Gemini key. Optional offline fallback: `ollama pull qwen2.5:3b`.
 
-**3. Connect Google for Email and Calendar** (optional; only needed for those two agents). Each operator creates their own free OAuth client:
-1. In [Google Cloud Console](https://console.cloud.google.com/), create a project and enable the **Gmail API** and **Google Calendar API** under **APIs & Services > Library**.
-2. Configure the **OAuth consent screen** as **External**, leave it in **Testing**, and add the Gmail address you'll connect under **Test users**.
-3. Go to **Credentials > Create Credentials > OAuth client ID** and choose **Desktop app**. No redirect URI is needed, because J.A.R.V.I.S. catches the sign-in on a local `127.0.0.1` port.
-4. In J.A.R.V.I.S., open **⚙ SETTINGS > [MAIL] Email & Calendar Integration**, paste the **Client ID** and **Client Secret** (`GOCSPX-...`), and click **Save Settings**.
-5. Click **Connect Google Account** and approve access in the browser. Google will warn that the app isn't verified, which is expected for your own testing app: choose **Advanced > Go to (app name)**. Settings then shows **Connected as you@gmail.com**.
+**3. Connect Google** (only for Email and Calendar):
+1. In [Google Cloud Console](https://console.cloud.google.com/), create a project and enable the **Gmail**, **Google Calendar**, **People** and **Google Drive** APIs.
+2. Set the **OAuth consent screen** to **External / Testing** and add your Gmail as a **test user**.
+3. Create an **OAuth client ID** of type **Desktop app**.
+4. In J.A.R.V.I.S., open **⚙ SETTINGS > [MAIL]**, paste the Client ID and Secret, **Save**, then **Connect Google Account**. (Google warns the app is unverified: choose **Advanced > Go to app**.)
 
-Permissions requested: `openid`, `userinfo.email`, `gmail.readonly`, `gmail.send`, `calendar`.
-
-> [!IMPORTANT]
-> Tokens are stored **encrypted** in `data/oauth_tokens/` with a key tied to your machine, and the client secret lives in your local `config.yaml`. Both are gitignored: never commit them or share them. Tokens copied to another PC won't work; just reconnect there. To revoke access, click **Disconnect** in Settings or remove the app at [myaccount.google.com/permissions](https://myaccount.google.com/permissions).
-
-### Optional Agent Settings
-
-| Setting | Where | Effect |
-| :--- | :--- | :--- |
-| `email_signature` | `config.yaml` | Sign-off appended to sent mail. If empty, J.A.R.V.I.S. learns your usual sign-off from your Sent folder. |
-| `catchup_after_idle_hours` | `config.yaml` | How long you must be away before coming back gets a catch-up (default `4`). |
-| `JARVIS_UNDO_SEND_S` | environment | Seconds you have to undo a sent email (default `10`). |
-| `JARVIS_AGENT_LLM` | environment | Set to `0` for keyword-only routing with no AI calls. |
-| `JARVIS_AGENT_STATE_DIR` | environment | Where agent state and the audit log live (default `data/agents`). |
-| `OLLAMA_HOST` | environment | Ollama address if it isn't `http://localhost:11434`. |
+> [!TIP]
+> Already connected before an update? Settings shows **Reconnect to grant new permissions**; click it once. Tokens are stored encrypted in `data/oauth_tokens/` and the client secret in `config.yaml`; both are gitignored, never share them.
 
 > [!NOTE]
-> Archiving, labelling and marking mail as read, Google Contacts lookup and Google Drive search need extra Google permissions (`gmail.modify`, `contacts.readonly`, `drive.readonly`) that aren't requested yet. Until then, those tools say so plainly and fall back where they can, for example finding contacts from your email history. Searching by meaning uses the local MiniLM model if it's cached (`~/.cache/chroma/onnx_models/all-MiniLM-L6-v2`); without it, results say they were ranked by keywords only.
+> **WSL users:** if screenshots, clipboard or Windows commands fail with "Exec format error", WSL's Windows interop is off (common with `systemd=true`). Fix once inside WSL: `echo ':WSLInterop:M::MZ::/init:PF' | sudo tee /usr/lib/binfmt.d/WSLInterop.conf`, then `wsl --shutdown` from Windows.
+
+**Optional settings:** `email_signature` and `catchup_after_idle_hours` in `config.yaml`; `JARVIS_UNDO_SEND_S` (undo window for sent mail, default 10 s) and `JARVIS_AGENT_LLM=0` (no AI routing) as environment variables.
+
+### Long-Term Memory
+J.A.R.V.I.S. remembers across sessions in one local database (`data/memory/`), and gives each agent only what it needs for the task in hand.
+- **What it keeps**: facts, preferences, decisions, commitments, project status, workflows, lessons and past runs. *"Remember that…", "Call me Boss", "We decided…", "Remind me to… by Friday", "No, it's Max, not Bruno"*
+- **Learns by itself**: when a conversation ends it is turned into structured memories; corrections replace the old fact, and failures that got fixed become lessons.
+- **Finds the right things**: keywords, meaning (the local MiniLM model, if installed), people and projects, and time ("last week"). *"Continue working on the assistant project"* brings back its status, decisions, open tasks and past fixes.
+- **Honest about sources**: every memory says where it came from; conflicting facts are flagged, not guessed.
+- **You stay in control**: *"What do you remember about Ravi?"*, *"Forget everything about Kavya"* (asks first), *"Remember privately that…"* (never shared with agents). Passwords and keys are never stored.
+- **Safe**: daily backup, automatic repair, and restore if the database is ever damaged.
+
+The first start imports your existing memory files automatically. Maintenance from a terminal: `python -m memory.maintenance.cli stats` (also `search`, `forget`, `backup`, `restore`, `check`). Check memory quality after changes: `python -m memory.benchmarks.run`. Turn extraction with Groq off with `JARVIS_MEMORY_LLM=0`, agent memory with `JARVIS_AGENT_MEMORY=0`.
 
 ---
 

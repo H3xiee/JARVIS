@@ -1,0 +1,86 @@
+[
+  {
+    "id": "cross_session_recall",
+    "behaviour": "Recall a project discussed in a previous session",
+    "requires": ["keyword", "sessions"],
+    "sessions": [
+      {"id": "ses_bench_a", "started_at": "2026-10-02T09:00:00Z", "ended_at": "2026-10-02T09:40:00Z",
+       "messages": [
+         {"role": "user", "content": "Let's plan the assistant project. It will use a multi-agent architecture with a supervisor.", "at": "2026-10-02T09:01:00Z"},
+         {"role": "jarvis", "content": "Understood: a supervisor routes each request to an agent.", "at": "2026-10-02T09:01:10Z"},
+         {"role": "user", "content": "Email and calendar agents first, then local research.", "at": "2026-10-02T09:05:00Z"}
+       ]}
+    ],
+    "memories": [
+      {"content": "The assistant project uses a multi-agent architecture with a supervisor.", "type": "semantic",
+       "category": "project_fact", "entity": "assistant project", "entity_kind": "project",
+       "source_type": "user_confirmed", "reference": "ses_bench_a", "importance": 0.9},
+      {"content": "Prefers dark mode in every app.", "type": "semantic", "category": "preference",
+       "entity": "operator", "source_type": "user_stated"}
+    ],
+    "checks": [
+      {"kind": "recall", "query": "what architecture does the assistant project use", "k": 2, "expect": ["multi-agent"]},
+      {"kind": "session_recall", "query": "supervisor", "expect": ["supervisor"]},
+      {"kind": "session_summary", "expect": ["assistant project"]}
+    ]
+  },
+  {
+    "id": "preference_recall",
+    "behaviour": "Apply a previously confirmed preference",
+    "requires": ["keyword"],
+    "memories": [
+      {"content": "Prefers short spoken answers, one or two sentences.", "type": "semantic", "category": "preference",
+       "entity": "operator", "source_type": "user_confirmed", "importance": 0.8},
+      {"content": "Usually works late in the evening.", "type": "semantic", "category": "habit",
+       "entity": "operator", "source_type": "agent"}
+    ],
+    "checks": [
+      {"kind": "recall", "query": "how long should my answers be", "k": 1, "expect": ["short spoken answers"]}
+    ]
+  },
+  {
+    "id": "episodic_recall",
+    "behaviour": "Retrieve a previous execution and its outcome",
+    "requires": ["keyword"],
+    "memories": [
+      {"content": "Ran the disk cleanup on drive C: it freed 12 GB and emptied the temp folder.", "type": "episodic",
+       "category": "system_operation", "source_type": "tool_result", "reference": "system_ops.cleanup",
+       "data": {"agent": "system_ops", "goal": "free disk space", "outcome": "success"}, "dedupe": false},
+      {"content": "Checked the network: Wi-Fi signal was weak in the bedroom.", "type": "episodic",
+       "category": "system_operation", "source_type": "tool_result", "dedupe": false}
+    ],
+    "checks": [
+      {"kind": "recall", "query": "what happened with the disk cleanup", "k": 1, "expect": ["12 gb"]}
+    ]
+  },
+  {
+    "id": "procedural_recall",
+    "behaviour": "Reuse a previously validated workflow",
+    "requires": ["keyword"],
+    "memories": [
+      {"content": "To reconnect Google: open Settings > MAIL, click Reconnect, approve the new permissions.",
+       "type": "procedural", "category": "workflow", "source_type": "user_confirmed",
+       "data": {"name": "reconnect_google", "trigger": "reconnect google", "steps": ["open settings", "click reconnect"], "success_count": 2}},
+      {"content": "To take a screenshot: press Win+Shift+S.", "type": "procedural", "category": "workflow",
+       "source_type": "agent"}
+    ],
+    "checks": [
+      {"kind": "recall", "query": "how do I reconnect my google account", "k": 1, "expect": ["reconnect google"]}
+    ]
+  },
+  {
+    "id": "prospective_recall",
+    "behaviour": "Identify a pending future commitment",
+    "requires": ["keyword"],
+    "memories": [
+      {"content": "Promised to send Ravi the budget sheet by Friday.", "type": "prospective", "category": "commitment",
+       "entity": "Ravi", "entity_kind": "person", "source_type": "user_stated",
+       "data": {"due_at": "2026-11-27T17:00:00Z", "owner": "operator"}},
+      {"content": "Ravi likes cricket.", "type": "semantic", "category": "contact_fact", "entity": "Ravi",
+       "source_type": "user_stated"}
+    ],
+    "checks": [
+      {"kind": "recall", "query": "what did I promise to send Ravi", "k": 1, "expect": ["budget sheet"]}
+    ]
+  }
+]

@@ -3938,8 +3938,13 @@ class JarvisAPI:
         try:
             conn = self._google_oauth_connector()
             accounts = conn.accounts()
+            # Accounts connected before new permissions were added (archive/label, contacts,
+            # Drive search) must reconnect once to grant them.
+            missing = conn.missing_scopes() if accounts else []
             return {"status": "ok", "configured": conn.configured, "connected": bool(accounts),
-                    "email": accounts[0] if accounts else None}
+                    "email": accounts[0] if accounts else None,
+                    "needs_reconnect": bool(missing),
+                    "missing": [s.rsplit("/", 1)[-1] for s in missing]}
         except Exception as e:
             print(f"[desktop] Google OAuth status error: {type(e).__name__}")
             return {"status": "error", "connected": False, "email": None}

@@ -32,6 +32,7 @@ FOLDED_ACTIONS = {
     "top_processes": "system_ops: cpu_and_processes",
     "search": "assistant: web_search",
     "memory_recall": "assistant: memory_recall",
+    "clipboard": "system_ops: read_clipboard / copy_to_clipboard",
 }
 NAMESPACE = "tactical"
 # tool_terminal_exec was removed: an unbounded shell is not something a planner gets.
@@ -243,13 +244,6 @@ class JarvisCognitiveLoop:
         sb = SituationalBriefingEngine()
         res = sb.generate_briefing(location)
         return {"success": True, "briefing": res, "debrief": res["spoken_text"]}
-
-    def tool_clipboard(self) -> Dict[str, Any]:
-        """Inspects and summarizes active system clipboard."""
-        from modules.system_controller import SystemController
-        sc = SystemController()
-        debrief = sc.summarize_clipboard()
-        return {"success": True, "debrief": debrief}
 
     def tool_media_control(self, action: str) -> Dict[str, Any]:
         """Controls system media playback."""
@@ -484,8 +478,6 @@ Available Tools:
   Parameters: {{"action": "git_intel"}}
 - "briefing": Executive situational briefing aggregating weather, news, system telemetry.
   Parameters: {{"action": "briefing", "location": "<optional location>"}}
-- "clipboard": Inspect clipboard buffers.
-  Parameters: {{"action": "clipboard"}}
 - "directions": Turn-by-turn road driving route between two points.
   Parameters: {{"action": "directions", "from": "<origin>", "to": "<destination>"}}
 - "live_news": Access 24/7 global SIGINT live news broadcasts.
@@ -505,7 +497,7 @@ Rules:
 5. Distinguish OSINT vs Cyber Recon:
    - Use "osint_investigate" when the user wants to find accounts, profiles, or usernames online, check if a username exists, check an email or account for breaches/leaks/exposure, or asks "who is <x> online".
    - Use "cyber_recon" for technical infrastructure reconnaissance (DNS records, WHOIS registration, IP network blocks, Shodan open ports).
-6. This engine is the TACTICAL namespace only. Email, calendar, the operator's own files, this computer's processes/disk/memory, general web searches and what JARVIS remembers are handled by the assistant agents: return [] for those.
+6. This engine is the TACTICAL namespace only. Email, calendar, the operator's own files, this computer's processes/disk/memory/clipboard/screen, general web searches and what JARVIS remembers are handled by the assistant agents: return [] for those.
 7. Output ONLY a valid raw JSON array of objects. No markdown formatting, no explanations."""
 
         sys_prompt = "You are a precise tactical tool-selection agent. Output a raw JSON array of objects only."
@@ -584,8 +576,6 @@ Rules:
                                     item["progress_phrase"] = f"Inspecting repository branch and working directory state, {sal}..."
                                 elif action == "briefing":
                                     item["progress_phrase"] = f"Compiling multi-source executive situational briefing, {sal}..."
-                                elif action == "clipboard":
-                                    item["progress_phrase"] = f"Reading active system clipboard buffers, {sal}..."
                                 elif action == "calendar":
                                     item["progress_phrase"] = f"Scanning your agenda and scheduling buffers, {sal}..."
                                 elif action == "inbox":
@@ -792,7 +782,6 @@ Rules:
 
         has_briefing = any(w in text_lower for w in ["good morning", "briefing", "situational briefing", "status report", "morning protocol", "executive briefing", "how is the day looking", "how does the day look"]) and not any(w in text_lower for w in ["warzone", "conflict", "frontline", "cyber", "flight", "weather"])
         has_git = any(w in text_lower for w in ["git status", "repo status", "git branch", "uncommitted", "repository status", "git diff"])
-        has_clip = any(w in text_lower for w in ["clipboard", "what's on my clipboard", "whats on my clipboard", "read clipboard", "copied"])
         has_vol = any(w in text_lower for w in ["volume up", "volume down", "mute", "unmute", "set volume"])
         has_media = any(w in text_lower for w in ["pause music", "resume music", "play music", "next track", "previous track", "stop music"])
         has_news = any(kw in text_lower for kw in [
@@ -898,12 +887,6 @@ Rules:
             plan_steps.append({
                 "action": "git_intel",
                 "progress_phrase": f"Inspecting repository branch and working directory state, {sal}..."
-            })
-
-        if has_clip:
-            plan_steps.append({
-                "action": "clipboard",
-                "progress_phrase": f"Reading active system clipboard buffers, {sal}..."
             })
 
         if has_vol or has_media:
@@ -1173,10 +1156,6 @@ Rules:
                 elif action == "briefing":
                     res = self.tool_situational_briefing(step.get("location", ""))
                     obs["result"] = res.get("debrief", "Executive situational briefing generated.")
-
-                elif action == "clipboard":
-                    res = self.tool_clipboard()
-                    obs["result"] = res.get("debrief", "Clipboard inspect complete.")
 
                 elif action == "live_news":
                     res = self.tool_live_news()

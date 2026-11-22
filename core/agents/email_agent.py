@@ -6,11 +6,13 @@ structured arguments (recipients, instruction, attachment paths...), so there is
 no phrase parsing here.
 
 Tools (category / risk):
-  read   check_inbox, read_email, summarise_thread, triage_inbox, resolve_contact,
-         find_attachment, list_followups
-  draft  draft_email, draft_reply, draft_forward, edit_draft   (local only, revisable)
-  action track_followup (local), organise_email (Gmail labels, reversible),
-         send_email (DESTRUCTIVE), unsubscribe (DESTRUCTIVE)
+  read   check_inbox, search_email, read_email, summarise_thread, triage_inbox,
+         resolve_contact, find_attachment, list_followups, list_labels
+  draft  draft_email, draft_reply, draft_forward, edit_draft, create_gmail_draft
+         (JARVIS drafts are revisable; create_gmail_draft puts one in Gmail's Drafts)
+  action track_followup (local), save_attachment (a new local file, undoable),
+         organise_email (Gmail labels, reversible), send_email (DESTRUCTIVE),
+         unsubscribe (DESTRUCTIVE)
 
 Drafting is split from sending: the loop can draft and revise freely; only
 ``send_email`` (and ``unsubscribe``) pause for the operator's yes. The full
@@ -43,12 +45,12 @@ import httpx
 
 from core.agents.base_agent import AgentResult, BaseAgent, RiskTier, ToolSpec
 from core.agents.trust import fence, new_nonce
+from modules.oauth_connector import CONTACTS_SCOPE, GMAIL_MODIFY_SCOPE as MODIFY_SCOPE
 
 NO_ACCOUNT_SUMMARY = "No Google account connected yet — add it in Settings."
-MODIFY_SCOPE = "https://www.googleapis.com/auth/gmail.modify"
-CONTACTS_SCOPE = "https://www.googleapis.com/auth/contacts.readonly"
-NEEDS_MODIFY_SUMMARY = ("Archiving, labelling and marking read need Gmail's 'modify' permission, which the shared "
-                        "Google connection doesn't request yet (it only has read and send).")
+
+NEEDS_MODIFY_SUMMARY = ("Archiving, labelling and marking read need Gmail's 'modify' permission, which your Google "
+                        "account hasn't granted yet. Reconnect it once in Settings ([MAIL] > Reconnect).")
 NEEDS_MODEL_SUMMARY = ("Writing, replying and organising mail need the planning model (Groq), which isn't available "
                        "right now. I can still check your inbox, triage it, or list follow-ups.")
 _MAX_LIST = 10
@@ -270,6 +272,24 @@ class EmailAgent(BaseAgent):
                      obj({"sender": {"type": "string", "description": "Only mail from this person, domain or address"},
                           "urgent_only": {"type": "boolean"}}),
                      "read", R, self.check_inbox, untrusted_output=True, progress="Checking your inbox"),
+            ToolSpec("search_email",
+                     "Search all mail, not just unread: words, sender, dates, attachments ('the invoice from March', "
+                     "'the thread about the lease'). Gmail query syntax also works in query. Returns message ids.",
+                     obj({"query": {"type": "string", "description": "Words, or Gmail syntax like 'subject:lease'"},
+                          "sender": {"type": "string"}, "after": {"type": "string", "description": "YYYY-MM-DD"},
+                          "before": {"type": "string", "description": "YYYY-MM-DD"},
+                          "has_attachment": {"type": "boolean"}, "limit": {"type": "integer"}}),
+                     "read", R, self.search_email, untrusted_output=True, progress="Searching your mail"),
+            ToolSpec("list_labels", "The Gmail labels that exist (use before labelling, never invent one).",
+                     obj({}), "read", R, self.list_labels, progress="Checking your labels"),
+            ToolSpec("save_attachment",
+                     "Save an attachment from an email to a folder on this PC (Downloads unless the operator named "
+                     "one). Never overwrites; programs and scripts are refused; undoable with undo_file_changes.",
+                     obj({"message_id": {"type": "string"},
+                          "attachment": {"type": "string", "description": "Its file name, its type ('pdf'), or its "
+                                                                          "number (1 = first); default: the only one"},
+                          "folder": {"type": "string"}}, ("message_id",)),
+                     "action", REV, self.save_attachment, progress="Saving the attachment"),
             ToolSpec("read_email", "Read one email's full text by message id (from check_inbox or triage_inbox).",
                      obj({"message_id": {"type": "string"}}, ("message_id",)),
                      "read", R, self.read_email, untrusted_output=True, progress="Reading the email"),
@@ -316,16 +336,22 @@ class EmailAgent(BaseAgent):
                           "subject": {"type": "string"}, "add_cc": _STR_LIST, "add_bcc": _STR_LIST,
                           "remove": {**_STR_LIST, "description": "Names/addresses to take off the draft"}}, ("draft_id",)),
                      "draft", REV, self.edit_draft, grounded_args=("add_cc", "add_bcc"), progress="Revising the draft", extras=SEND_NEXT),
+            ToolSpec("create_gmail_draft",
+                     "Put a JARVIS draft into Gmail's Drafts folder (reviewable and sendable from the phone; survives "
+                     "restarts). Use when the operator says 'save it as a draft' or 'put it in my drafts'.",
+                     obj({"draft_id": {"type": "string"}}, ("draft_id",)),
+                     "draft", REV, self.create_gmail_draft, progress="Saving it to your Gmail drafts"),
             ToolSpec("track_followup",
                      "Remind the operator if a person hasn't replied to their latest sent email within N days.",
                      obj({"person": {"type": "string"}, "days": {"type": "number"}}, ("person",)),
                      "action", REV, self.track_followup, grounded_args=("person",), progress="Setting a follow-up"),
             ToolSpec("organise_email",
                      "Archive, mark as read, or label emails. Target explicit message ids, or a pile: 'ignore' / 'fyi' "
-                     "(from triage), 'listed' (last listing), or 'from:<sender>'.",
+                     "(from triage), 'listed' (last listing), or 'from:<sender>'. The label must already exist "
+                     "(list_labels) unless the operator asked for a new one: then set create_label.",
                      obj({"operation": {"type": "string", "enum": ["archive", "mark_read", "label"]},
                           "message_ids": _STR_LIST, "target": {"type": "string"},
-                          "label": {"type": "string"}}, ("operation",)),
+                          "label": {"type": "string"}, "create_label": {"type": "boolean"}}, ("operation",)),
                      "action", REV, self.organise_email, preview=self.organise_preview,
                      confirm=lambda a: a.get("operation") == "label" or len(a.get("message_ids") or []) > 3
                      or not a.get("message_ids"),
@@ -773,7 +799,17 @@ class EmailAgent(BaseAgent):
                 return AgentResult(status="failed", summary=f"I couldn't revise the draft ({type(exc).__name__}).")
         if not draft.get("to"):
             return AgentResult(status="failed", summary="That would leave the email with nobody to send it to.")
-        return self._store_draft(draft, draft_id=did)
+        result = self._store_draft(draft, draft_id=did)
+        if draft.get("gmail_draft_id"):
+            try:
+                gmail = await self._modify_client()
+                payload, _ = await asyncio.to_thread(self._build_payload, gmail, draft)
+                await asyncio.to_thread(lambda: gmail.users().drafts().update(
+                    userId="me", id=draft["gmail_draft_id"], body={"message": payload}).execute())
+                result.summary += " (Gmail Drafts updated too)"
+            except Exception:
+                result.summary += " (couldn't update the copy in Gmail Drafts)"
+        return result
 
     def _store_draft(self, draft: dict, draft_id: Optional[str] = None) -> AgentResult:
         draft_id = draft_id or uuid.uuid4().hex[:10]
@@ -896,6 +932,10 @@ class EmailAgent(BaseAgent):
         if out.status == "done":
             DRAFTS.pop(did, None)
             _maybe_track_after_send(draft, out)
+            try:
+                await asyncio.to_thread(_remember_sent, draft, out)
+            except Exception:
+                pass  # memory is a help; the email is already sent
         return out
 
     @_tool_errors
@@ -913,6 +953,135 @@ class EmailAgent(BaseAgent):
                        "since": time.time(), "due": due, "notified": False})
         when = datetime.fromtimestamp(due).strftime("%A %d %B, %H:%M").replace(" 0", " ")
         return AgentResult(status="done", summary=f"I'll tell you if {who} hasn't replied to '{meta.get('subject') or 'your email'}' by {when}")
+
+    async def _modify_client(self):
+        """A Gmail client with the modify permission (drafts, labels); raises MissingScopeError."""
+        await self._gmail()
+        return await self._conn.get_client(service="gmail", version="v1", require_scopes=[MODIFY_SCOPE])
+
+    @_tool_errors
+    async def search_email(self, args: dict, ctx: dict) -> AgentResult:
+        gmail = await self._gmail()
+        parts = [str(args.get("query") or "").strip()]
+        if args.get("sender"):
+            parts.append(f"from:{str(args['sender']).strip()}")
+        for key, op in (("after", "after"), ("before", "before")):
+            v = str(args.get(key) or "").strip()
+            if re.fullmatch(r"\d{4}-\d{2}-\d{2}", v):
+                parts.append(f"{op}:{v.replace('-', '/')}")
+        if args.get("has_attachment"):
+            parts.append("has:attachment")
+        query = " ".join(p for p in parts if p)
+        if not query:
+            return AgentResult(status="failed", summary="What should I search your mail for?")
+        limit = max(1, min(25, int(args.get("limit") or 10)))
+        found = await asyncio.to_thread(self._list_messages, gmail, query, limit)
+        metas = await self._metas(gmail, [m["id"] for m in found])
+        LAST_LIST[:] = metas
+        if not metas:
+            return AgentResult(status="done", data=[], summary=f"No email matches {query}.")
+        top = "; ".join(f"'{m['subject'] or '(no subject)'}' from {m['from_name']} ({m['date'][:16]})" for m in metas[:3])
+        data = [{k: m[k] for k in ("id", "thread_id", "from_name", "from_addr", "subject", "date", "snippet")} for m in metas]
+        return AgentResult(status="done", data=data,
+                           summary=f"{len(metas)} email{'s' if len(metas) != 1 else ''} match {query}: {top}")
+
+    @_tool_errors
+    async def list_labels(self, args: dict, ctx: dict) -> AgentResult:
+        gmail = await self._gmail()
+        names = await asyncio.to_thread(_label_names, gmail)
+        user = sorted(n for n in names if not n.isupper())
+        return AgentResult(status="done", data={"labels": user, "system": sorted(n for n in names if n.isupper())},
+                           summary=f"{len(user)} label{'s' if len(user) != 1 else ''} of your own: " + (", ".join(user[:15]) or "none"))
+
+    @_tool_errors
+    async def save_attachment(self, args: dict, ctx: dict) -> AgentResult:
+        from core.agents import file_ops
+        from core.agents.local_research_agent import _UNSAFE_TO_OPEN
+        gmail = await self._gmail()
+        mid = str(args.get("message_id") or "").strip()
+        if not mid:
+            return AgentResult(status="failed", summary="Which email? Give a message id from a search.")
+        msg = await asyncio.to_thread(lambda: gmail.users().messages().get(userId="me", id=mid, format="full").execute())
+        parts = _attachment_parts(msg.get("payload") or {}, max_bytes=_MAX_ATTACH_BYTES)
+        if not parts:
+            return AgentResult(status="failed", summary="That email has no attachments.")
+        want = str(args.get("attachment") or "").strip()
+        safe = [p for p in parts if os.path.splitext(p["filename"])[1].lower() not in _UNSAFE_TO_OPEN]
+        part = None
+        if want.isdigit() and 1 <= int(want) <= len(parts):
+            part = parts[int(want) - 1]
+        elif want:
+            ext = "." + want.lower().lstrip(".")
+            by_type = [p for p in parts if p["filename"].lower().endswith(ext)]
+            part = next((p for p in parts if p["filename"].lower() == want.lower()), None) or \
+                next((p for p in parts if want.lower() in p["filename"].lower()), None) or \
+                (by_type[0] if len(by_type) == 1 else None)  # "the PDF"
+        elif len(safe) == 1:
+            part = safe[0]  # the only one that could be saved anyway
+        if part is None:
+            names = ", ".join(p["filename"] for p in parts)
+            return AgentResult(status="failed", summary=f"Which attachment? It has: {names}.")
+        name = re.sub(r'[\\/:*?"<>|]', "_", os.path.basename(part["filename"])).strip() or "attachment"
+        if os.path.splitext(name)[1].lower() in _UNSAFE_TO_OPEN:
+            return AgentResult(status="failed",
+                               summary=f"{name} is a program or script; I won't save it from an email. Download it "
+                                       "yourself from Gmail if you trust the sender.")
+        folder_arg = str(args.get("folder") or "").strip()
+        prov = ctx.get("provenance")
+        if folder_arg and prov is not None and not prov.trusted_mentions(folder_arg) \
+                and not prov.trusted_mentions(Path(folder_arg).parts[0]):
+            folder_arg = ""  # only a folder the operator named counts
+        folder, problem = file_ops.resolve_dir(folder_arg or "downloads", None, prov)
+        if problem:
+            return AgentResult(status="failed", summary=problem)
+        why = file_ops.protected(str(folder / name))
+        if why:
+            return AgentResult(status="failed", summary=f"I won't save into {folder}: {why}.")
+        if part.get("data"):
+            raw = part["data"]
+        else:
+            att = await asyncio.to_thread(lambda: gmail.users().messages().attachments().get(
+                userId="me", messageId=mid, id=part["attachment_id"]).execute())
+            raw = att.get("data") or ""
+        data = base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4))
+        target = folder / name
+        stem, ext, n = target.stem, target.suffix, 1
+        while target.exists():  # never overwrite: "report (1).pdf"
+            target = folder / f"{stem} ({n}){ext}"
+            n += 1
+
+        def _write():
+            folder.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+        await asyncio.to_thread(_write)
+        file_ops.FileJournal.record([{"op": "create", "dst": str(target)}], f"save {target.name}")
+        sender = parseaddr(_headers(msg).get("from", ""))[0] or "the email"
+        return AgentResult(status="done", data={"path": str(target), "bytes": len(data)},
+                           summary=f"Saved {target.name} from {sender} to {folder} ({_human_bytes(len(data))})")
+
+    @_tool_errors
+    async def create_gmail_draft(self, args: dict, ctx: dict) -> AgentResult:
+        from modules.oauth_connector import MissingScopeError
+        did = str(args.get("draft_id") or "").strip()
+        draft = DRAFTS.get(did)
+        if not draft:
+            return AgentResult(status="failed", summary="There's no draft with that id; draft the email first.")
+        try:
+            gmail = await self._modify_client()
+        except MissingScopeError:
+            return AgentResult(status="failed", summary="Saving to Gmail Drafts needs Gmail's 'modify' permission, which "
+                                                        "your account hasn't granted yet. Reconnect it once in Settings.")
+        payload, _ = await asyncio.to_thread(self._build_payload, gmail, draft)
+        drafts = gmail.users().drafts()
+        if draft.get("gmail_draft_id"):
+            made = await asyncio.to_thread(lambda: drafts.update(userId="me", id=draft["gmail_draft_id"],
+                                                                 body={"message": payload}).execute())
+        else:
+            made = await asyncio.to_thread(lambda: drafts.create(userId="me", body={"message": payload}).execute())
+        draft["gmail_draft_id"] = made.get("id")
+        return AgentResult(status="done", data={"draft_id": did, "gmail_draft_id": made.get("id")},
+                           summary=f"Saved the email to {_people(draft['to'])} in your Gmail Drafts; you can send it from "
+                                   "there or ask me to.")
 
     async def _organise_targets(self, gmail, args: dict) -> Tuple[List[dict], str]:
         ids = [str(i) for i in (args.get("message_ids") or []) if i]
@@ -941,6 +1110,15 @@ class EmailAgent(BaseAgent):
             writable = await self._conn.get_client(service="gmail", version="v1", require_scopes=[MODIFY_SCOPE])
         except MissingScopeError:
             return None, AgentResult(status="failed", summary=NEEDS_MODIFY_SUMMARY)
+        if op == "label" and not args.get("create_label"):
+            names = await asyncio.to_thread(_label_names, writable)
+            wanted = str(args["label"]).strip().lower()
+            if wanted not in {n.lower() for n in names}:
+                user = [n for n in names if not n.isupper()][:12]
+                return None, AgentResult(status="failed",
+                                         summary=f"There's no label called '{args['label']}'. Existing labels: "
+                                                 f"{', '.join(user) or 'none of your own'}. Ask the operator before "
+                                                 "creating a new one (create_label).")
         msgs, what = await self._organise_targets(writable, args)
         if not msgs:
             return None, AgentResult(status="failed", summary="Which emails? Give message ids, or triage first.")
@@ -953,6 +1131,10 @@ class EmailAgent(BaseAgent):
             return problem
         _, msgs, what = plan
         verb = {"archive": "Archive", "mark_read": "Mark as read", "label": f"Label as '{args.get('label')}'"}[args["operation"]]
+        if args["operation"] == "label" and args.get("create_label"):
+            existing = {n.lower() for n in await asyncio.to_thread(_label_names, plan[0])}
+            if str(args.get("label")).strip().lower() not in existing:
+                verb += " (a new label)"
         names = "; ".join(f"'{m.get('subject') or '(no subject)'}'" for m in msgs[:3] if m.get("subject"))
         return AgentResult(status="done", data={"ids": [m["id"] for m in msgs], "action": verb},
                            summary=f"{verb} {len(msgs)} email{'s' if len(msgs) != 1 else ''} ({what}"
@@ -1041,7 +1223,25 @@ class EmailAgent(BaseAgent):
 
     @staticmethod
     def _send_message(gmail, draft: dict) -> AgentResult:
-        """Build the MIME message and send it. Runs only after the operator confirms."""
+        """Build the MIME message and send it. Runs only after the operator confirms.
+        A draft that was also saved to Gmail is sent FROM Gmail's Drafts (updated to the
+        latest text first), so no stale copy is left behind there."""
+        payload, attached = EmailAgent._build_payload(gmail, draft)
+        if draft.get("gmail_draft_id"):
+            drafts = gmail.users().drafts()
+            drafts.update(userId="me", id=draft["gmail_draft_id"], body={"message": payload}).execute()
+            sent = drafts.send(userId="me", body={"id": draft["gmail_draft_id"]}).execute()
+        else:
+            sent = gmail.users().messages().send(userId="me", body=payload).execute()
+        who = _people(draft["to"])
+        verb = {"reply": "Reply sent to", "forward": "Forwarded to"}.get(draft.get("kind"), "Email sent to")
+        extra = f" with {', '.join(attached)} attached" if attached and draft.get("kind") != "reply" else ""
+        return AgentResult(status="done", summary=f"{verb} {who}{extra}",
+                           data={"id": sent.get("id"), "thread_id": sent.get("threadId") or draft.get("thread_id")})
+
+    @staticmethod
+    def _build_payload(gmail, draft: dict) -> Tuple[Dict[str, Any], List[str]]:
+        """The Gmail API message body (raw MIME + thread) for a draft, and the attached file names."""
         mime = EmailMessage()
         mime["To"] = ", ".join(_fmt_addr(p) for p in draft["to"])
         if draft.get("cc"):
@@ -1067,6 +1267,8 @@ class EmailAgent(BaseAgent):
         fwd = draft.get("forward_from")
         if fwd:
             for part in fwd.get("parts", []):
+                if not part.get("attachment_id"):
+                    continue
                 try:
                     att = gmail.users().messages().attachments().get(userId="me", messageId=fwd["message_id"],
                                                                      id=part["attachment_id"]).execute()
@@ -1080,12 +1282,7 @@ class EmailAgent(BaseAgent):
         payload: Dict[str, Any] = {"raw": raw}
         if draft.get("thread_id"):
             payload["threadId"] = draft["thread_id"]
-        sent = gmail.users().messages().send(userId="me", body=payload).execute()
-        who = _people(draft["to"])
-        verb = {"reply": "Reply sent to", "forward": "Forwarded to"}.get(draft.get("kind"), "Email sent to")
-        extra = f" with {', '.join(attached)} attached" if attached and draft.get("kind") != "reply" else ""
-        return AgentResult(status="done", summary=f"{verb} {who}{extra}",
-                           data={"id": sent.get("id"), "thread_id": sent.get("threadId") or draft.get("thread_id")})
+        return payload, attached
 
     # ── STYLE ──────────────────────────────────────────────────
     async def _style_hint(self) -> str:
@@ -1308,14 +1505,32 @@ def _ensure_label(gmail, name: str) -> str:
     return created["id"]
 
 
-def _attachment_parts(payload: Dict[str, Any]) -> List[dict]:
+def _attachment_parts(payload: Dict[str, Any], max_bytes: int = 10 * 1024 * 1024) -> List[dict]:
     out = []
     for part in payload.get("parts", []) or []:
         body = part.get("body") or {}
-        if part.get("filename") and body.get("attachmentId") and int(body.get("size") or 0) < 10 * 1024 * 1024:
-            out.append({"filename": part["filename"], "attachment_id": body["attachmentId"], "mime": part.get("mimeType")})
-        out += _attachment_parts(part)
+        if part.get("filename") and int(body.get("size") or 0) < max_bytes:
+            if body.get("attachmentId"):
+                out.append({"filename": part["filename"], "attachment_id": body["attachmentId"],
+                            "mime": part.get("mimeType"), "size": int(body.get("size") or 0)})
+            elif body.get("data"):  # small attachments can come inline
+                out.append({"filename": part["filename"], "data": body["data"], "mime": part.get("mimeType"),
+                            "size": int(body.get("size") or 0)})
+        out += _attachment_parts(part, max_bytes)
     return out
+
+
+def _label_names(gmail) -> List[str]:
+    return [lab.get("name", "") for lab in gmail.users().labels().list(userId="me").execute().get("labels", [])
+            if lab.get("name")]
+
+
+def _human_bytes(n: float) -> str:
+    for unit in ("bytes", "KB", "MB", "GB"):
+        if n < 1024 or unit == "GB":
+            return f"{n:.0f} {unit}" if unit == "bytes" else f"{n:.1f} {unit}"
+        n /= 1024
+    return f"{n:.1f} GB"
 
 
 def _re(subject: str) -> str:
@@ -1377,6 +1592,30 @@ def _subject_from(instruction: str, attachment_names: str = "") -> str:
         return attachment_names.split(",")[0].strip()
     subj = " ".join(words[:7]).strip(" .,!?")
     return (subj[:1].upper() + subj[1:]) if subj else "Quick note"
+
+
+def _remember_sent(draft: dict, out: AgentResult) -> None:
+    """Communication history for the shared memory: who was emailed, about what, when (never the body).
+    The address is kept as a tool result, not as the operator's word: it may have come from an email header,
+    so it can inform a later draft but never ground a recipient on its own."""
+    from memory.core.agent_memory import agent_memory, enabled
+    if not enabled():
+        return
+    mem = agent_memory("email")
+    thread = (out.data or {}).get("thread_id") if isinstance(out.data, dict) else None
+    for name, addr in list(draft.get("to") or [])[:3]:
+        who = (name or addr or "").strip()
+        if not who:
+            continue
+        kind = {"reply": "Replied to", "forward": "Forwarded to"}.get(draft.get("kind"), "Emailed")
+        mem.mm.episodic.record(f"{kind} {who}: '{draft.get('subject') or '(no subject)'}'", outcome="success",
+                               agent="email", goal="send email", entity=who, entity_kind="person",
+                               category="communication", details={"thread_id": thread, "kind": draft.get("kind"),
+                                                                  "address": addr}, source="tool_result",
+                               reference="email.send_email")
+        if name and addr and "@" in addr:
+            mem.remember(f"{name}'s email address is {addr}.", category="contact_fact", entity=name,
+                         entity_kind="person", importance=0.5, reference="email.send_email")
 
 
 def _maybe_track_after_send(draft: dict, out: AgentResult) -> None:

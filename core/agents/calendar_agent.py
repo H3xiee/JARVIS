@@ -3,8 +3,13 @@
 exposed as tools for the supervisor's loop.
 
 Tools (category / risk):
-  read   list_events, find_free_slot, check_conflicts, get_event_context
-  action create_event, move_event, delete_event   (DESTRUCTIVE: other people's time)
+  read   list_calendars, list_events, find_free_slot, find_meeting_time,
+         check_conflicts, get_event_context
+  action create_event (one-off or repeating), move_event, delete_event,
+         respond_to_invite   (DESTRUCTIVE: other people's time / they are notified)
+
+Every tool works on the primary calendar unless given another one by name or id
+(list_calendars); list_events and find_free_slot also take "all".
 
 No date parsing here: the model sends ISO timestamps. They are read as wall-clock
 times in the CALENDAR's own time zone (Google Calendar settings), never the
@@ -146,21 +151,45 @@ class CalendarAgent(BaseAgent):
 
         when = {"type": "string", "description": _ISO_HINT}
         day = {"type": "string", "description": "Date 'YYYY-MM-DD' in the operator's calendar time zone"}
+        calendar = {"type": "string", "description": "Which calendar (name or id from list_calendars); default primary"}
+        calendar_all = {"type": "string", "description": "Which calendar (name or id), or 'all'; default primary"}
+        repeat = {"type": "object", "description": "Only for a repeating event", "properties": {
+            "frequency": {"type": "string", "enum": ["daily", "weekly", "monthly", "yearly"]},
+            "interval": {"type": "integer", "description": "Every N periods (default 1)"},
+            "days": {"type": "array", "items": {"type": "string"}, "description": "Weekdays for weekly: MO TU WE TH FR SA SU"},
+            "count": {"type": "integer", "description": "Stop after this many"},
+            "until": {"type": "string", "description": "Last date, YYYY-MM-DD"}}, "required": ["frequency"]}
         return [
+            ToolSpec("list_calendars", "The calendars the operator has (work, personal, shared...), with which can be "
+                                       "written to.", obj({}), "read", R, self.list_calendars,
+                     progress="Checking your calendars"),
             ToolSpec("list_events", "List calendar events for a day (or several days), optionally matching a word. "
                                     "Returns event ids. To find an event the operator names without a date "
                                     "('the board meeting'), search from today with days=14 and query.",
                      obj({"date": day, "days": {"type": "integer", "description": "How many days (default 1, max 14)"},
-                          "query": {"type": "string", "description": "Only events whose text contains this"}}, ("date",)),
+                          "query": {"type": "string", "description": "Only events whose text contains this"},
+                          "calendar": calendar_all}, ("date",)),
                      "read", R, self.list_events, untrusted_output=True, progress="Checking your calendar"),
             ToolSpec("find_free_slot", "Find free time of a given length between working hours on a day (or the "
                                        "next few days).",
                      obj({"date": day, "duration_minutes": {"type": "integer"},
                           "earliest": {"type": "string", "description": "'HH:MM', default 09:00"},
                           "latest": {"type": "string", "description": "'HH:MM', default 18:00"},
-                          "days": {"type": "integer", "description": "Look this many days ahead (default 1, max 7)"}},
+                          "days": {"type": "integer", "description": "Look this many days ahead (default 1, max 7)"},
+                          "calendar": calendar_all},
                          ("date", "duration_minutes")),
                      "read", R, self.find_free_slot, progress="Looking for free time"),
+            ToolSpec("find_meeting_time", "Find a time when the operator AND other people are all free (their "
+                                          "Google free/busy), e.g. 'find us an hour next week'. Weekends are skipped "
+                                          "unless asked. Says whose calendar it can't see.",
+                     obj({"attendees": {"type": "array", "items": {"type": "string"},
+                                        "description": "Email addresses or names the operator gave"},
+                          "duration_minutes": {"type": "integer"}, "from_date": day,
+                          "days": {"type": "integer", "description": "How many days to look across (default 5, max 14)"},
+                          "earliest": {"type": "string", "description": "'HH:MM', default 09:00"},
+                          "latest": {"type": "string", "description": "'HH:MM', default 18:00"},
+                          "include_weekends": {"type": "boolean"}}, ("attendees", "duration_minutes", "from_date")),
+                     "read", R, self.find_meeting_time, grounded_args=("attendees",), progress="Comparing calendars"),
             ToolSpec("check_conflicts", "Which events overlap a proposed time.",
                      obj({"start": when, "end": when}, ("start", "end")),
                      "read", R, self.check_conflicts, untrusted_output=True, progress="Checking for clashes"),
@@ -168,23 +197,34 @@ class CalendarAgent(BaseAgent):
                                           "thread and related local files.",
                      obj({"event_id": {"type": "string"}}, ("event_id",)),
                      "read", R, self.get_event_context, untrusted_output=True, progress="Pulling the meeting together"),
-            ToolSpec("create_event", "Create a calendar event (the operator approves first). Attendees get invites.",
+            ToolSpec("create_event", "Create a calendar event, one-off or repeating ('every Tuesday'). The "
+                                     "operator approves first; attendees get invites.",
                      obj({"title": {"type": "string"}, "start": when, "end": when,
                           "duration_minutes": {"type": "integer", "description": "Used when end is not given (default 60)"},
                           "attendees": {"type": "array", "items": {"type": "string"},
                                         "description": "Email addresses or names the operator gave"},
                           "location": {"type": "string"}, "description": {"type": "string"},
-                          "time_zone": {"type": "string", "description": "Only if the operator named another zone, IANA name"}},
+                          "time_zone": {"type": "string", "description": "Only if the operator named another zone, IANA name"},
+                          "repeat": repeat, "calendar": calendar},
                          ("title", "start")),
                      "action", D, self.create_event, preview=self.create_preview, grounded_args=("attendees",),
                      progress="Adding it to your calendar"),
             ToolSpec("move_event", "Move an event (by id) to a new start; keeps its length unless new_end is given. "
                                    "The operator approves first; attendees are notified.",
-                     obj({"event_id": {"type": "string"}, "new_start": when, "new_end": when}, ("event_id", "new_start")),
+                     obj({"event_id": {"type": "string"}, "new_start": when, "new_end": when, "calendar": calendar},
+                         ("event_id", "new_start")),
                      "action", D, self.move_event, preview=self.move_preview, progress="Moving the event"),
             ToolSpec("delete_event", "Delete or cancel an event by id. The operator approves first; attendees are notified.",
-                     obj({"event_id": {"type": "string"}}, ("event_id",)),
+                     obj({"event_id": {"type": "string"}, "calendar": calendar}, ("event_id",)),
                      "action", D, self.delete_event, preview=self.delete_preview, progress="Removing the event"),
+            ToolSpec("respond_to_invite", "Accept, decline or answer 'maybe' to an invitation someone else sent "
+                                          "(event id from list_events). The organiser is told. The operator approves first.",
+                     obj({"event_id": {"type": "string"},
+                          "response": {"type": "string", "enum": ["accepted", "declined", "tentative"]},
+                          "comment": {"type": "string", "description": "Optional note to the organiser"},
+                          "whole_series": {"type": "boolean", "description": "For a repeating meeting: every occurrence"},
+                          "calendar": calendar}, ("event_id", "response")),
+                     "action", D, self.respond_to_invite, preview=self.respond_preview, progress="Replying to the invite"),
         ]
 
     # ── Fallback entry point (no planning model) ───────────────
@@ -215,14 +255,80 @@ class CalendarAgent(BaseAgent):
         return [f"The operator's time zone (from Google Calendar) is {name}; their local time is "
                 f"{now.strftime('%A %d %B %Y, %H:%M')}. Use it for 'today', 'tomorrow' and all calendar times."]
 
-    # ── Reading ────────────────────────────────────────────────
-    def _list_range(self, cal, start: datetime, end: datetime, tz: tzinfo) -> List[Dict[str, Any]]:
-        res = cal.events().list(calendarId="primary", timeMin=start.isoformat(), timeMax=end.isoformat(),
-                                singleEvents=True, orderBy="startTime", maxResults=100).execute()
-        return [_normalise_event(e, tz) for e in res.get("items", []) if e.get("status") != "cancelled"]
+    # ── Calendars ──────────────────────────────────────────────
+    async def _calendars(self, cal) -> List[Dict[str, Any]]:
+        cached = getattr(self, "_cal_list", None)
+        if cached is not None:
+            return cached
+        try:
+            items = await asyncio.to_thread(lambda: cal.calendarList().list().execute().get("items", []))
+        except Exception:
+            items = []
+        out = [{"id": c.get("id"), "name": c.get("summaryOverride") or c.get("summary") or c.get("id"),
+                "primary": bool(c.get("primary")), "access": c.get("accessRole", "reader"),
+                "selected": c.get("selected", True) is not False} for c in items if c.get("id")]
+        if not any(c["primary"] for c in out):
+            out.insert(0, {"id": "primary", "name": "Primary", "primary": True, "access": "owner", "selected": True})
+        self._cal_list = out
+        return out
 
-    async def _events_between(self, cal, tz, start: datetime, end: datetime) -> List[Dict[str, Any]]:
-        return await asyncio.to_thread(self._list_range, cal, start, end, tz)
+    async def _calendar_ids(self, cal, which: Any, allow_all: bool = False) -> Tuple[List[Tuple[str, str]], Optional[str]]:
+        """[(id, name)] for a calendar the model named; 'all' = every calendar shown in Google Calendar."""
+        text = str(which or "").strip()
+        if not text or text.lower() == "primary":
+            return [("primary", "")], None
+        cals = await self._calendars(cal)
+        if text.lower() == "all":
+            if not allow_all:
+                return [], "Pick one calendar for this, not 'all'."
+            return [(("primary" if c["primary"] else c["id"]), "" if c["primary"] else c["name"])
+                    for c in cals if c["selected"]], None
+        low = text.lower()
+        hit = next((c for c in cals if c["id"].lower() == low or c["name"].lower() == low), None) or \
+            next((c for c in cals if low in c["name"].lower()), None)
+        if hit is None:
+            return [], f"There's no calendar called '{text}'. You have: {', '.join(c['name'] for c in cals)}."
+        return [("primary" if hit["primary"] else hit["id"], "" if hit["primary"] else hit["name"])], None
+
+    async def _writable_id(self, cal, which: Any) -> Tuple[Optional[str], str, Optional[str]]:
+        ids, problem = await self._calendar_ids(cal, which)
+        if problem:
+            return None, "", problem
+        cid, name = ids[0]
+        if cid != "primary":
+            access = next((c["access"] for c in await self._calendars(cal) if c["id"] == cid), "reader")
+            if access not in ("owner", "writer"):
+                return None, "", f"The '{name}' calendar is read-only for you."
+        return cid, name, None
+
+    @_calendar_errors
+    async def list_calendars(self, args: dict, ctx: dict) -> AgentResult:
+        cal = await self._cal()
+        cals = await self._calendars(cal)
+        bits = [f"{c['name']}{' (main)' if c['primary'] else ''}{'' if c['access'] in ('owner', 'writer') else ' (read-only)'}"
+                for c in cals]
+        return AgentResult(status="done", data=cals, summary=f"{len(cals)} calendar{'s' if len(cals) != 1 else ''}: " + "; ".join(bits))
+
+    # ── Reading ────────────────────────────────────────────────
+    def _list_range(self, cal, start: datetime, end: datetime, tz: tzinfo, calendar_id: str = "primary",
+                    calendar_name: str = "") -> List[Dict[str, Any]]:
+        res = cal.events().list(calendarId=calendar_id, timeMin=start.isoformat(), timeMax=end.isoformat(),
+                                singleEvents=True, orderBy="startTime", maxResults=100).execute()
+        out = []
+        for e in res.get("items", []):
+            if e.get("status") != "cancelled":
+                ev = _normalise_event(e, tz)
+                ev["calendar_id"], ev["calendar"] = calendar_id, calendar_name
+                out.append(ev)
+        return out
+
+    async def _events_between(self, cal, tz, start: datetime, end: datetime,
+                              calendars: Optional[List[Tuple[str, str]]] = None) -> List[Dict[str, Any]]:
+        calendars = calendars or [("primary", "")]
+        chunks = await asyncio.gather(*[asyncio.to_thread(self._list_range, cal, start, end, tz, cid, name)
+                                        for cid, name in calendars], return_exceptions=True)
+        events = [e for c in chunks if not isinstance(c, BaseException) for e in c]
+        return sorted(events, key=lambda e: (e["start"] or datetime.combine(_date_of(e), time(0), tz)))
 
     @_calendar_errors
     async def list_events(self, args: dict, ctx: dict) -> AgentResult:
@@ -233,7 +339,10 @@ class CalendarAgent(BaseAgent):
             return AgentResult(status="failed", summary="list_events needs a date as YYYY-MM-DD.")
         start = start.replace(hour=0, minute=0, second=0, microsecond=0)
         days = max(1, min(14, int(args.get("days") or 1)))
-        events = await self._events_between(cal, tz, start, start + timedelta(days=days))
+        calendars, problem = await self._calendar_ids(cal, args.get("calendar"), allow_all=True)
+        if problem:
+            return AgentResult(status="failed", summary=problem)
+        events = await self._events_between(cal, tz, start, start + timedelta(days=days), calendars)
         query = str(args.get("query") or "").strip().lower()
         if query:
             events = [e for e in events if query in f"{e['summary']} {e['location']} {e['description']}".lower()]
@@ -249,7 +358,9 @@ class CalendarAgent(BaseAgent):
                   "events": [{"id": e["id"], "summary": e["summary"], "all_day": e["all_day"], "location": e["location"],
                               "start": e["start"].isoformat() if e["start"] else None} for e in events]})
         parts = [(f"all day: {e['summary']}" if e["all_day"]
-                  else f"{_fmt_when(e['start'], start.date() if days == 1 else None)} {e['summary']}") for e in events[:6]]
+                  else f"{_fmt_when(e['start'], start.date() if days == 1 else None)} {e['summary']}")
+                 + (f" [{e['calendar']}]" if e.get("calendar") else "")
+                 + (" (invite, not answered)" if e.get("my_response") == "needsAction" else "") for e in events[:6]]
         more = f" and {len(events) - 6} more" if len(events) > 6 else ""
         return AgentResult(status="done", data=[_public(e) for e in events],
                            summary=f"{len(events)} event{'s' if len(events) != 1 else ''} {label}: " + "; ".join(parts) + more)
@@ -268,8 +379,12 @@ class CalendarAgent(BaseAgent):
         now = self._now().astimezone(tz)
         need = timedelta(minutes=minutes)
         start_day = first.date()
+        calendars, problem = await self._calendar_ids(cal, args.get("calendar"), allow_all=True)
+        if problem:
+            return AgentResult(status="failed", summary=problem)
         events = await self._events_between(cal, tz, datetime.combine(start_day, time(0), tz),
-                                            datetime.combine(start_day + timedelta(days=days), time(0), tz))
+                                            datetime.combine(start_day + timedelta(days=days), time(0), tz), calendars)
+        events = [e for e in events if e.get("my_response") != "declined"]
         slots = []
         for offset in range(days):
             d = start_day + timedelta(days=offset)
@@ -332,16 +447,30 @@ class CalendarAgent(BaseAgent):
         return AgentResult(status="done", summary=", ".join(bits) + ".",
                            data={"event": _public(event), "emails": mail, "files": files})
 
-    async def _get_event(self, cal, tz, event_id: str) -> Optional[dict]:
+    async def _get_event(self, cal, tz, event_id: str, calendar_id: str = "primary", raw: bool = False):
         if not event_id:
             return None
         try:
-            raw = await asyncio.to_thread(lambda: cal.events().get(calendarId="primary", eventId=event_id).execute())
+            got = await asyncio.to_thread(lambda: cal.events().get(calendarId=calendar_id, eventId=event_id).execute())
         except Exception:
             return None
-        if not raw or raw.get("status") == "cancelled":
+        if not got or got.get("status") == "cancelled":
             return None
-        return _normalise_event(raw, tz)
+        if raw:
+            return got
+        ev = _normalise_event(got, tz)
+        ev["calendar_id"] = calendar_id
+        return ev
+
+    async def _event_for(self, cal, tz, args: dict):
+        """The event an action names: by id, in the calendar given (default primary)."""
+        cid, name, problem = await self._writable_id(cal, args.get("calendar"))
+        if problem:
+            return None, None, problem
+        ev = await self._get_event(cal, tz, str(args.get("event_id") or ""), cid)
+        if ev is None:
+            return None, cid, "There's no event with that id" + (f" in '{name}'" if name else "") + "; list the events first."
+        return ev, cid, None
 
     async def _related_mail(self, event: dict) -> List[dict]:
         from core.agents.email_agent import EmailAgent
@@ -402,9 +531,21 @@ class CalendarAgent(BaseAgent):
         attendees, problem = await self._attendee_addresses(args.get("attendees") or [])
         if problem:
             return None, problem
+        cid, cname, problem = await self._writable_id(cal, args.get("calendar"))
+        if problem:
+            return None, AgentResult(status="failed", summary=problem)
+        rrule, repeat_text, problem = recurrence_rule(args.get("repeat"), start)
+        if problem:
+            return None, AgentResult(status="failed", summary=problem)
+        shift = _first_matching_day(rrule, start)
+        if shift:
+            # "Every Tuesday and Thursday" said on a Sunday: the series starts on the first Tuesday.
+            # (Google would otherwise add a stray occurrence on the start date itself.)
+            start, end = start + shift, end + shift
         clashes = await self._clashes(cal, tz, start, end)
         return {"cal": cal, "tz": tz, "tz_name": args.get("time_zone") or tz_name, "title": title, "start": start,
-                "end": end, "attendees": attendees, "clashes": clashes,
+                "end": end, "attendees": attendees, "clashes": clashes, "calendar_id": cid, "calendar": cname,
+                "rrule": rrule, "repeat_text": repeat_text,
                 "location": str(args.get("location") or ""), "description": str(args.get("description") or "")}, None
 
     @_calendar_errors
@@ -416,6 +557,10 @@ class CalendarAgent(BaseAgent):
         start_local = plan["start"].astimezone(plan["tz"])
         text = (f"Schedule '{plan['title']}' {_day_label(start_local.date(), now)} "
                 f"{_fmt_time(start_local)} to {_fmt_time(plan['end'].astimezone(plan['tz']))}")
+        if plan["repeat_text"]:
+            text += f", repeating {plan['repeat_text']}"
+        if plan["calendar"]:
+            text += f", in your '{plan['calendar']}' calendar"
         if plan["attendees"]:
             text += f", inviting {', '.join(plan['attendees'])}"
         if plan["clashes"]:
@@ -437,17 +582,21 @@ class CalendarAgent(BaseAgent):
             body["location"] = plan["location"]
         if plan["description"]:
             body["description"] = plan["description"]
+        if plan["rrule"]:
+            body["recurrence"] = [plan["rrule"]]
         created = await asyncio.to_thread(lambda: cal.events().insert(
-            calendarId="primary", body=body, sendUpdates="all" if plan["attendees"] else "none").execute())
+            calendarId=plan["calendar_id"], body=body, sendUpdates="all" if plan["attendees"] else "none").execute())
+        when = _fmt_when(plan["start"].astimezone(plan["tz"]), None)
+        repeat = f", repeating {plan['repeat_text']}" if plan["repeat_text"] else ""
         return await self._verify(cal, plan["tz"], created.get("id"), plan["start"],
-                                  f"'{plan['title']}' is on your calendar for {_fmt_when(plan['start'].astimezone(plan['tz']), None)}")
+                                  f"'{plan['title']}' is on your calendar for {when}{repeat}", plan["calendar_id"])
 
     async def _move_plan(self, args: dict):
         cal = await self._cal()
         tz, tz_name = await self._tz(cal)
-        event = await self._get_event(cal, tz, str(args.get("event_id") or ""))
-        if event is None:
-            return None, AgentResult(status="failed", summary="There's no event with that id; list the day's events first.")
+        event, cid, problem = await self._event_for(cal, tz, args)
+        if problem:
+            return None, AgentResult(status="failed", summary=problem)
         if event["all_day"]:
             return None, AgentResult(status="failed", summary="That's an all-day event; I can only move timed events.")
         new_start = parse_local(args.get("new_start"), tz)
@@ -480,17 +629,18 @@ class CalendarAgent(BaseAgent):
             return problem
         cal, ev = plan["cal"], plan["event"]
         body = {"start": _when_body(plan["start"], plan["tz_name"]), "end": _when_body(plan["end"], plan["tz_name"])}
-        await asyncio.to_thread(lambda: cal.events().patch(calendarId="primary", eventId=ev["id"], body=body,
+        cid = ev.get("calendar_id") or "primary"
+        await asyncio.to_thread(lambda: cal.events().patch(calendarId=cid, eventId=ev["id"], body=body,
                                                            sendUpdates="all").execute())
-        return await self._verify(cal, plan["tz"], ev["id"], plan["start"], f"Moved '{ev['summary']}' to {_fmt_time(plan['start'])}")
+        return await self._verify(cal, plan["tz"], ev["id"], plan["start"], f"Moved '{ev['summary']}' to {_fmt_time(plan['start'])}", cid)
 
     @_calendar_errors
     async def delete_preview(self, args: dict, ctx: dict) -> AgentResult:
         cal = await self._cal()
         tz, _ = await self._tz(cal)
-        ev = await self._get_event(cal, tz, str(args.get("event_id") or ""))
-        if ev is None:
-            return AgentResult(status="failed", summary="There's no event with that id; list the day's events first.")
+        ev, _, problem = await self._event_for(cal, tz, args)
+        if problem:
+            return AgentResult(status="failed", summary=problem)
         others = ev["attendee_count"]
         notify = f" ({others} other attendee{'s' if others != 1 else ''} will be told it's cancelled)" if others else ""
         when = "all day" if ev["all_day"] else _fmt_when(ev["start"], None)
@@ -501,16 +651,148 @@ class CalendarAgent(BaseAgent):
     async def delete_event(self, args: dict, ctx: dict) -> AgentResult:
         cal = await self._cal()
         tz, _ = await self._tz(cal)
-        ev = await self._get_event(cal, tz, str(args.get("event_id") or ""))
-        if ev is None:
-            return AgentResult(status="failed", summary="That event is already gone.")
-        await asyncio.to_thread(lambda: cal.events().delete(calendarId="primary", eventId=ev["id"],
+        ev, cid, problem = await self._event_for(cal, tz, args)
+        if problem:
+            return AgentResult(status="failed", summary="That event is already gone." if cid else problem)
+        await asyncio.to_thread(lambda: cal.events().delete(calendarId=cid, eventId=ev["id"],
                                                             sendUpdates="all").execute())
         return AgentResult(status="done", summary=f"Deleted '{ev['summary']}'", data={"event_id": ev["id"]})
 
-    async def _verify(self, cal, tz, event_id: Optional[str], intended: datetime, ok_text: str) -> AgentResult:
+    # ── Invitations ────────────────────────────────────────────
+    @staticmethod
+    def _operator_comment(args: dict, ctx: dict) -> str:
+        """A note to the organiser only if the operator dictated it (seen live: the model added
+        'Looking forward to it' on its own)."""
+        comment = str(args.get("comment") or "").strip()
+        prov = (ctx or {}).get("provenance")
+        if comment and prov is not None:
+            words = re.findall(r"[a-z']{4,}", comment.lower())
+            if not words or not any(prov.trusted_mentions(w) for w in words):
+                return ""
+        return comment[:500]
+
+    async def _invite_plan(self, args: dict):
+        response = str(args.get("response") or "").lower()
+        if response not in ("accepted", "declined", "tentative"):
+            return None, "response must be accepted, declined or tentative."
+        cal = await self._cal()
+        tz, _ = await self._tz(cal)
+        ev, cid, problem = await self._event_for(cal, tz, args)
+        if problem:
+            return None, problem
+        target_id = (ev.get("recurring_event_id") if args.get("whole_series") else None) or ev["id"]
+        raw = await self._get_event(cal, tz, target_id, cid, raw=True)
+        if raw is None:
+            return None, "I couldn't load that invitation."
+        attendees = raw.get("attendees") or []
+        me = next((a for a in attendees if a.get("self")), None)
+        if me is None:
+            return None, "You're not on that event's guest list, so there's nothing to answer."
+        if me.get("organizer") or (raw.get("organizer") or {}).get("self"):
+            return None, "That's your own event; there's no invitation to answer."
+        return {"cal": cal, "tz": tz, "cid": cid, "event": ev, "raw": raw, "target_id": target_id,
+                "response": response, "me": me}, None
+
+    @_calendar_errors
+    async def respond_preview(self, args: dict, ctx: dict) -> AgentResult:
+        args = {**args, "comment": self._operator_comment(args, ctx)}
+        plan, problem = await self._invite_plan(args)
+        if problem:
+            return AgentResult(status="failed", summary=problem)
+        ev = plan["event"]
+        verb = {"accepted": "Accept", "declined": "Decline", "tentative": "Answer 'maybe' to"}[plan["response"]]
+        organiser = (plan["raw"].get("organizer") or {}).get("displayName") or (plan["raw"].get("organizer") or {}).get("email") or "the organiser"
+        when = "all day" if ev["all_day"] else _fmt_when(ev["start"], None)
+        series = " (every occurrence)" if plan["target_id"] != ev["id"] else ""
+        note = f" with the note \"{args['comment']}\"" if args.get("comment") else ""
+        return AgentResult(status="done", data={"event_id": ev["id"], "response": plan["response"]},
+                           summary=f"{verb} '{ev['summary']}' ({when}){series}{note}? {organiser} will be told.")
+
+    @_calendar_errors
+    async def respond_to_invite(self, args: dict, ctx: dict) -> AgentResult:
+        args = {**args, "comment": self._operator_comment(args, ctx)}
+        plan, problem = await self._invite_plan(args)
+        if problem:
+            return AgentResult(status="failed", summary=problem)
+        attendees = []
+        for a in plan["raw"].get("attendees") or []:
+            a = dict(a)
+            if a.get("self"):
+                a["responseStatus"] = plan["response"]
+                if args.get("comment"):
+                    a["comment"] = str(args["comment"])[:500]
+            attendees.append(a)
+        cal, cid, tid = plan["cal"], plan["cid"], plan["target_id"]
+        await asyncio.to_thread(lambda: cal.events().patch(calendarId=cid, eventId=tid, body={"attendees": attendees},
+                                                           sendUpdates="all").execute())
+        after = await self._get_event(cal, plan["tz"], tid, cid, raw=True)
+        mine = next((a for a in (after or {}).get("attendees") or [] if a.get("self")), {})
+        if mine.get("responseStatus") != plan["response"]:
+            return AgentResult(status="failed", summary="Google didn't record the reply; please check the invitation.")
+        word = {"accepted": "Accepted", "declined": "Declined", "tentative": "Answered 'maybe' to"}[plan["response"]]
+        return AgentResult(status="done", summary=f"{word} '{plan['event']['summary']}'",
+                           data={"event_id": tid, "response": plan["response"]})
+
+    # ── Finding a time for several people ──────────────────────
+    @_calendar_errors
+    async def find_meeting_time(self, args: dict, ctx: dict) -> AgentResult:
+        cal = await self._cal()
+        tz, tz_name = await self._tz(cal)
+        minutes = int(args.get("duration_minutes") or 0)
+        first = parse_local(args.get("from_date"), tz)
+        if minutes <= 0 or first is None:
+            return AgentResult(status="failed", summary="find_meeting_time needs a duration and a start date.")
+        people, problem = await self._attendee_addresses(args.get("attendees") or [])
+        if problem:
+            return problem
+        if not people:
+            return AgentResult(status="failed", summary="Who should be at the meeting?")
+        days = max(1, min(14, int(args.get("days") or 5)))
+        earliest, latest = _clock(args.get("earliest")) or WORK_START, _clock(args.get("latest")) or WORK_END
+        start = datetime.combine(first.date(), time(0), tz)
+        end = start + timedelta(days=days)
+        body = {"timeMin": start.isoformat(), "timeMax": end.isoformat(), "timeZone": tz_name or "UTC",
+                "items": [{"id": "primary"}] + [{"id": p} for p in people]}
+        fb = await asyncio.to_thread(lambda: cal.freebusy().query(body=body).execute())
+        busy, unseen = [], []
+        for cid, info in (fb.get("calendars") or {}).items():
+            if info.get("errors"):
+                unseen.append(cid)
+                continue
+            for b in info.get("busy") or []:
+                busy.append((_parse_dt(b["start"], tz), _parse_dt(b["end"], tz)))
+        busy.sort()
+        need, now = timedelta(minutes=minutes), self._now().astimezone(tz)
+        slots = []
+        for offset in range(days):
+            d = first.date() + timedelta(days=offset)
+            if d.weekday() >= 5 and not args.get("include_weekends"):
+                continue
+            cursor = max(datetime.combine(d, earliest, tz), _round_up(now, 15) if d == now.date() else datetime.min.replace(tzinfo=tz))
+            stop = datetime.combine(d, latest, tz)
+            for b_start, b_end in busy:
+                if b_end <= cursor or b_start >= stop:
+                    continue
+                if b_start - cursor >= need:
+                    break
+                cursor = max(cursor, b_end)
+            if stop - cursor >= need:
+                slots.append(cursor)
+            if len(slots) >= 3:
+                break
+        who = ", ".join(people)
+        blind = f" I can't see {', '.join(unseen)}'s calendar, so check with them." if unseen else ""
+        if not slots:
+            return AgentResult(status="done", data={"slots": [], "unseen": unseen},
+                               summary=f"No {minutes}-minute time when you and {who} are all free in those {days} days.{blind}")
+        text = "; ".join(f"{_day_label(s.date(), now)} at {_fmt_time(s)}" for s in slots)
+        return AgentResult(status="done", data={"slots": [s.strftime("%Y-%m-%dT%H:%M") for s in slots], "unseen": unseen},
+                           summary=f"You and {who} are all free for {minutes} minutes {text}.{blind}")
+
+    async def _verify(self, cal, tz, event_id: Optional[str], intended: datetime, ok_text: str,
+                      calendar_id: str = "primary") -> AgentResult:
         """Read the event back from Google: say so if it isn't where we meant it to be."""
-        saved = await self._get_event(cal, tz, event_id or "")
+        saved = await self._get_event(cal, tz, event_id or "", calendar_id)
         if saved is None:
             return AgentResult(status="failed", data={"event_id": event_id},
                                summary="Google accepted the change but I can't find the event afterwards; please check your calendar.")
@@ -536,6 +818,75 @@ def _remember_tz_name(name: str) -> None:
     from core.agents.supervisor import save_json_state
     _TZ_MEMORY["name"] = name
     save_json_state("calendar_tz.json", {"name": name})
+
+
+_WEEKDAYS = {"MO": "Monday", "TU": "Tuesday", "WE": "Wednesday", "TH": "Thursday", "FR": "Friday",
+             "SA": "Saturday", "SU": "Sunday"}
+
+
+def recurrence_rule(repeat: Any, start: datetime) -> Tuple[Optional[str], str, Optional[str]]:
+    """(RRULE, plain words, problem) for a ``repeat`` argument. (None, "", None) = one-off."""
+    if not repeat:
+        return None, "", None
+    if not isinstance(repeat, dict):
+        return None, "", "repeat must describe a frequency (daily / weekly / monthly / yearly)."
+    freq = str(repeat.get("frequency") or "").lower()
+    if freq not in ("daily", "weekly", "monthly", "yearly"):
+        return None, "", "repeat.frequency must be daily, weekly, monthly or yearly."
+    interval = max(1, min(52, int(repeat.get("interval") or 1)))
+    parts = [f"FREQ={freq.upper()}"]
+    unit = {"daily": "day", "weekly": "week", "monthly": "month", "yearly": "year"}[freq]
+    words = (f"every {interval} {unit}s" if interval > 1 else {"daily": "every day", "weekly": "every week",
+                                                               "monthly": "every month", "yearly": "every year"}[freq])
+    if interval > 1:
+        parts.append(f"INTERVAL={interval}")
+    days = []
+    for d in repeat.get("days") or []:
+        code = str(d).strip().upper()[:2]
+        if code not in _WEEKDAYS:
+            return None, "", f"'{d}' isn't a weekday (use MO TU WE TH FR SA SU)."
+        days.append(code)
+    if days and freq == "weekly":
+        parts.append("BYDAY=" + ",".join(dict.fromkeys(days)))
+        names = [_WEEKDAYS[d] for d in dict.fromkeys(days)]
+        on = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+        words = f"every {on}" if interval == 1 else f"every {interval} weeks on {on}"
+    elif freq == "weekly" and interval == 1:
+        words = f"every {start.strftime('%A')}"
+    if repeat.get("count"):
+        count = max(1, min(500, int(repeat["count"])))
+        parts.append(f"COUNT={count}")
+        words += f", {count} times"
+    elif repeat.get("until"):
+        try:
+            until = date.fromisoformat(str(repeat["until"])[:10])
+        except ValueError:
+            return None, "", "repeat.until must be a date like 2026-06-30."
+        if until < start.date():
+            return None, "", "The repeat would end before the first one."
+        parts.append(f"UNTIL={until.strftime('%Y%m%d')}T235959Z")
+        words += f" until {until.strftime('%d %B %Y').lstrip('0')}"
+    return "RRULE:" + ";".join(parts), words, None
+
+
+def _first_matching_day(rrule: Optional[str], start: datetime) -> Optional[timedelta]:
+    """How far to move a weekly series' start so it falls on one of its BYDAY days."""
+    m = re.search(r"BYDAY=([A-Z,]+)", rrule or "")
+    if not m:
+        return None
+    codes = list(_WEEKDAYS)
+    wanted = {codes.index(c) for c in m.group(1).split(",") if c in codes}
+    for ahead in range(7):
+        if (start.weekday() + ahead) % 7 in wanted:
+            return timedelta(days=ahead) if ahead else None
+    return None
+
+
+def _date_of(e: Dict[str, Any]) -> date:
+    try:
+        return date.fromisoformat(str(e.get("date") or "")[:10])
+    except ValueError:
+        return date.min
 
 
 def _when_body(dt: datetime, tz_name: str) -> Dict[str, str]:
@@ -567,6 +918,9 @@ def _normalise_event(e: Dict[str, Any], tz) -> Dict[str, Any]:
         "attendee_emails": [a.get("email", "") for a in others if a.get("email")],
         "time_zone": s.get("timeZone"),
         "transparent": e.get("transparency") == "transparent",
+        "my_response": next((a.get("responseStatus") for a in e.get("attendees", []) or []
+                             if a.get("self") and not a.get("organizer")), None),
+        "recurring_event_id": e.get("recurringEventId"),
     }
 
 
@@ -575,7 +929,10 @@ def _public(e: dict) -> dict:
     return {"id": e["id"], "title": e["summary"], "all_day": e["all_day"],
             "start": e["start"].strftime("%Y-%m-%dT%H:%M") if e["start"] else e.get("date"),
             "end": e["end"].strftime("%Y-%m-%dT%H:%M") if e["end"] else None,
-            "location": e["location"], "description": e["description"], "attendees": e["attendees"]}
+            "location": e["location"], "description": e["description"], "attendees": e["attendees"],
+            **({"calendar": e["calendar"]} if e.get("calendar") else {}),
+            **({"my_response": e["my_response"]} if e.get("my_response") else {}),
+            **({"repeating": True} if e.get("recurring_event_id") else {})}
 
 
 def _parse_dt(value: Optional[str], tz) -> Optional[datetime]:

@@ -1,0 +1,79 @@
+[
+  {
+    "id": "correction_handling",
+    "behaviour": "Replace outdated information without losing history",
+    "requires": ["keyword", "versioning"],
+    "memories": [
+      {"name": "demo", "content": "The product demo is on Friday.", "type": "semantic", "category": "project_fact",
+       "entity": "assistant project", "source_type": "user_stated"}
+    ],
+    "operations": [
+      {"op": "correct", "memory": "demo", "to": "The product demo is on Monday.", "name": "demo_fixed"}
+    ],
+    "checks": [
+      {"kind": "recall", "query": "when is the product demo", "k": 3, "expect": ["monday"], "absent": ["friday"]},
+      {"kind": "versions", "memory": "demo_fixed", "lineage": 2},
+      {"kind": "count", "filters": {"status": "superseded"}, "equals": 1}
+    ]
+  },
+  {
+    "id": "temporal_validity",
+    "behaviour": "Know which facts were true when (active project changed)",
+    "requires": ["temporal"],
+    "memories": [
+      {"content": "Active project: Project Atlas.", "type": "semantic", "category": "active_project",
+       "entity": "operator", "source_type": "user_stated", "valid_from": "2026-10-01T00:00:00Z",
+       "valid_to": "2026-11-01T00:00:00Z"},
+      {"content": "Active project: Project Borealis.", "type": "semantic", "category": "active_project",
+       "entity": "operator", "source_type": "user_stated", "valid_from": "2026-11-01T00:00:00Z"}
+    ],
+    "checks": [
+      {"kind": "about", "entity": "operator", "valid_at": "2026-10-15T12:00:00Z",
+       "filters": {"category": "active_project"}, "expect": ["atlas"], "absent": ["borealis"]},
+      {"kind": "about", "entity": "operator", "valid_at": "2026-11-20T12:00:00Z",
+       "filters": {"category": "active_project"}, "expect": ["borealis"], "absent": ["atlas"]}
+    ]
+  },
+  {
+    "id": "source_attribution",
+    "behaviour": "Identify where a remembered fact came from",
+    "requires": ["keyword", "sources"],
+    "memories": [
+      {"content": "Priya's invoices come from billing@example.com.", "type": "semantic", "category": "contact_fact",
+       "entity": "Priya", "entity_kind": "person", "source_type": "tool_result", "reference": "email.check_inbox"}
+    ],
+    "checks": [
+      {"kind": "source", "query": "where do Priya's invoices come from", "source_type": "tool_result",
+       "reference": "email.check_inbox", "verification": "unverified"}
+    ]
+  },
+  {
+    "id": "deduplication",
+    "behaviour": "The same fact told three times is stored once, with three sources",
+    "requires": ["dedupe"],
+    "memories": [
+      {"content": "The standup is at 9:30 every Tuesday.", "type": "semantic", "category": "schedule",
+       "source_type": "user_stated", "reference": "s1"},
+      {"content": "The standup is at 9:30 every Tuesday", "type": "semantic", "category": "schedule",
+       "source_type": "user_stated", "reference": "s2"},
+      {"content": "the standup is at 9:30   every tuesday.", "type": "semantic", "category": "schedule",
+       "source_type": "user_confirmed", "reference": "s3"}
+    ],
+    "checks": [
+      {"kind": "count", "filters": {"category": "schedule"}, "equals": 1},
+      {"kind": "sources_count", "query": "standup tuesday", "equals": 3}
+    ]
+  },
+  {
+    "id": "contradiction_handling",
+    "behaviour": "Identify conflicting facts instead of choosing randomly",
+    "requires": ["contradiction_detection"],
+    "memories": [
+      {"content": "Ravi's birthday is on 3 March.", "type": "semantic", "category": "contact_fact", "entity": "Ravi"},
+      {"content": "Ravi's birthday is on 13 March.", "type": "semantic", "category": "contact_fact", "entity": "Ravi"}
+    ],
+    "checks": [
+      {"kind": "count", "filters": {"verification_status": "disputed"}, "equals": 2}
+    ]
+  }
+]

@@ -1,0 +1,129 @@
+[
+  {
+    "id": "fact_changes_over_time",
+    "behaviour": "A changed fact replaces the old one, and the old one is still known for its time",
+    "requires": ["stores", "temporal"],
+    "operations": [
+      {"op": "store", "store": "semantic", "method": "assert_fact", "args": ["Ravi", "works at", "Acme"],
+       "kwargs": {"subject_kind": "person", "valid_from": "2025-01-01T00:00:00Z"}},
+      {"op": "store", "store": "semantic", "method": "assert_fact", "args": ["Ravi", "works at", "Globex"],
+       "kwargs": {"valid_from": "2026-06-01T00:00:00Z"}}
+    ],
+    "checks": [
+      {"kind": "store", "store": "semantic", "method": "value", "args": ["Ravi", "works at"], "expect": ["globex"],
+       "absent": ["acme"]},
+      {"kind": "store", "store": "semantic", "method": "value", "args": ["Ravi", "works at"],
+       "kwargs": {"valid_at": "2025-08-01T00:00:00Z"}, "expect": ["acme"], "absent": ["globex"]},
+      {"kind": "recall", "query": "where does Ravi work", "k": 3, "expect": ["globex"], "absent": ["acme"]}
+    ]
+  },
+  {
+    "id": "corrected_fact_never_true",
+    "behaviour": "A corrected mistake is not reported as having been true in the past",
+    "requires": ["stores", "temporal", "versioning"],
+    "memories": [
+      {"name": "bday", "content": "Arjun's birthday is on 4 May.", "type": "semantic", "category": "contact_fact",
+       "entity": "Arjun", "source_type": "user_stated", "valid_from": "2026-01-01T00:00:00Z"}
+    ],
+    "operations": [
+      {"op": "correct", "memory": "bday", "to": "Arjun's birthday is on 14 May."}
+    ],
+    "checks": [
+      {"kind": "about", "entity": "Arjun", "valid_at": "2026-03-01T00:00:00Z", "absent": ["on 4 may"]}
+    ]
+  },
+  {
+    "id": "preference_change",
+    "behaviour": "A changed preference is applied; the old one is not",
+    "requires": ["stores"],
+    "operations": [
+      {"op": "store", "store": "semantic", "method": "set_preference", "args": ["answer_length", "short"]},
+      {"op": "store", "store": "semantic", "method": "set_preference", "args": ["answer_length", "detailed"]}
+    ],
+    "checks": [
+      {"kind": "store", "store": "semantic", "method": "preference", "args": ["answer_length"],
+       "expect": ["detailed"], "absent": ["short"]},
+      {"kind": "recall", "query": "answer length preference", "k": 3, "expect": ["detailed"], "absent": ["short"]}
+    ]
+  },
+  {
+    "id": "commitment_lifecycle",
+    "behaviour": "Pending commitments are listed by due date; completed ones drop off",
+    "requires": ["stores"],
+    "operations": [
+      {"op": "store", "store": "prospective", "method": "commit", "name": "sheet",
+       "args": ["Send Ravi the budget sheet"], "kwargs": {"due_at": "2026-11-27T17:00:00Z", "counterpart": "Ravi"}},
+      {"op": "store", "store": "prospective", "method": "commit", "name": "domain",
+       "args": ["Renew the domain"], "kwargs": {"due_at": "2026-11-23T09:00:00Z"}},
+      {"op": "store", "store": "prospective", "method": "commit", "args": ["Book the dentist"]},
+      {"op": "store", "store": "prospective", "method": "complete", "args": ["$domain"]}
+    ],
+    "checks": [
+      {"kind": "store", "store": "prospective", "method": "pending", "first": "budget sheet"},
+      {"kind": "store", "store": "prospective", "method": "pending", "expect": ["budget sheet", "dentist"],
+       "absent": ["renew the domain"]},
+      {"kind": "store", "store": "prospective", "method": "due", "kwargs": {"now": "2026-11-28T00:00:00Z"},
+       "expect": ["budget sheet"], "absent": ["dentist"]}
+    ]
+  },
+  {
+    "id": "validated_workflow_preferred",
+    "behaviour": "The workflow that has worked is offered before one that hasn't",
+    "requires": ["stores"],
+    "operations": [
+      {"op": "store", "store": "procedural", "method": "learn", "args": ["clean_disk_temp", ["Empty the temp folder"]],
+       "kwargs": {"description": "Clean the disk"}},
+      {"op": "store", "store": "procedural", "method": "learn", "args": ["clean_disk_cleanmgr", ["Run Disk Cleanup"]],
+       "kwargs": {"description": "Clean the disk"}},
+      {"op": "store", "store": "procedural", "method": "record_outcome", "args": ["clean_disk_temp", false]},
+      {"op": "store", "store": "procedural", "method": "record_outcome", "args": ["clean_disk_cleanmgr", true]},
+      {"op": "store", "store": "procedural", "method": "record_outcome", "args": ["clean_disk_cleanmgr", true]}
+    ],
+    "checks": [
+      {"kind": "store", "store": "procedural", "method": "find", "args": ["clean the disk"], "first": "run disk cleanup"},
+      {"kind": "store", "store": "procedural", "method": "validated", "expect": ["run disk cleanup"],
+       "absent": ["temp folder"]}
+    ]
+  },
+  {
+    "id": "working_memory_is_temporary",
+    "behaviour": "Scratch notes for a task stay with the task and never become long-term facts",
+    "requires": ["stores"],
+    "operations": [
+      {"op": "store", "store": "working", "method": "set", "args": ["recipient", "priya@example.com"],
+       "kwargs": {"scope": "draft_1"}},
+      {"op": "store", "store": "working", "method": "set", "args": ["recipient", "ravi@example.com"],
+       "kwargs": {"scope": "draft_1"}},
+      {"op": "store", "store": "working", "method": "set", "args": ["folder", "Documents"], "kwargs": {"scope": "save_2"}},
+      {"op": "store", "store": "working", "method": "clear", "args": ["save_2"]}
+    ],
+    "checks": [
+      {"kind": "store", "store": "working", "method": "items", "args": ["draft_1"], "expect": ["ravi@example.com"],
+       "absent": ["priya@example.com"]},
+      {"kind": "store", "store": "working", "method": "items", "args": ["save_2"], "absent": ["documents"]},
+      {"kind": "recall", "query": "ravi email address", "k": 3, "filters": {"type": "semantic"},
+       "absent": ["ravi@example.com"]}
+    ]
+  },
+  {
+    "id": "lesson_reinforcement",
+    "behaviour": "A lesson learned twice is one stronger lesson with both episodes as evidence",
+    "requires": ["stores"],
+    "operations": [
+      {"op": "store", "store": "episodic", "method": "record", "name": "ep1",
+       "args": ["Saved an attachment to a folder the operator never named"], "kwargs": {"outcome": "failure", "agent": "email"}},
+      {"op": "store", "store": "episodic", "method": "record", "name": "ep2",
+       "args": ["Moved files into Documents without asking"], "kwargs": {"outcome": "failure", "agent": "system_ops"}},
+      {"op": "store", "store": "reflective", "method": "learn",
+       "args": ["Ask before choosing a folder the operator didn't name"], "kwargs": {"context": "files", "evidence": ["$ep1"]}},
+      {"op": "store", "store": "reflective", "method": "learn",
+       "args": ["Ask before choosing a folder the operator didn't name."], "kwargs": {"context": "files", "evidence": ["$ep2"]}}
+    ],
+    "checks": [
+      {"kind": "count", "filters": {"type": "reflective"}, "equals": 1},
+      {"kind": "store", "store": "reflective", "method": "lessons_for", "args": ["which folder should I save to"],
+       "kwargs": {"context": "files"}, "expect": ["ask before choosing a folder"]},
+      {"kind": "store", "store": "episodic", "method": "failures", "expect": ["attachment", "documents"]}
+    ]
+  }
+]

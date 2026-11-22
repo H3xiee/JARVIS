@@ -1,0 +1,521 @@
+[
+  {
+    "id": "conversation_to_knowledge",
+    "behaviour": "A working conversation becomes a project profile, a decision, a status, a lesson and an episode",
+    "requires": [
+      "consolidation",
+      "extraction",
+      "stores"
+    ],
+    "sessions": [
+      {
+        "id": "ses_c1",
+        "started_at": "2026-11-20T09:00:00Z",
+        "ended_at": "2026-11-20T10:30:00Z",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Remember that the weather dashboard uses the OpenMeteo API.",
+            "at": "2026-11-20T09:01:00Z"
+          },
+          {
+            "role": "jarvis",
+            "content": "Noted.",
+            "at": "2026-11-20T09:01:05Z"
+          },
+          {
+            "role": "user",
+            "content": "We decided to cache forecasts for ten minutes.",
+            "at": "2026-11-20T09:10:00Z"
+          },
+          {
+            "role": "user",
+            "content": "Let's try caching in memory first.",
+            "at": "2026-11-20T09:20:00Z"
+          },
+          {
+            "role": "user",
+            "content": "Next time, check the API quota before load testing.",
+            "at": "2026-11-20T09:50:00Z"
+          },
+          {
+            "role": "user",
+            "content": "The weather dashboard is now in review.",
+            "at": "2026-11-20T10:20:00Z"
+          },
+          {
+            "role": "user",
+            "content": "open spotify",
+            "at": "2026-11-20T10:25:00Z"
+          }
+        ]
+      }
+    ],
+    "operations": [
+      {
+        "op": "consolidate"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "recall",
+        "query": "which API does the weather dashboard use",
+        "k": 1,
+        "expect": [
+          "openmeteo"
+        ]
+      },
+      {
+        "kind": "recall",
+        "query": "what did we decide about caching forecasts",
+        "k": 1,
+        "expect": [
+          "ten minutes"
+        ]
+      },
+      {
+        "kind": "recall",
+        "query": "weather dashboard status",
+        "k": 1,
+        "expect": [
+          "in review"
+        ]
+      },
+      {
+        "kind": "recall",
+        "query": "lesson about load testing",
+        "k": 1,
+        "expect": [
+          "api quota"
+        ]
+      },
+      {
+        "kind": "count",
+        "filters": {
+          "type": "episodic",
+          "category": "conversation"
+        },
+        "equals": 1
+      },
+      {
+        "kind": "recall",
+        "query": "spotify",
+        "k": 3,
+        "filters": {
+          "type": "semantic"
+        },
+        "absent": [
+          "spotify"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "correction_in_conversation",
+    "behaviour": "'No, it's X not Y' corrects the earlier memory and keeps its history",
+    "requires": [
+      "consolidation",
+      "extraction",
+      "versioning"
+    ],
+    "sessions": [
+      {
+        "id": "ses_c2",
+        "started_at": "2026-11-20T09:00:00Z",
+        "ended_at": "2026-11-20T09:30:00Z",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Remember that my dog is called Bruno.",
+            "at": "2026-11-20T09:00:00Z"
+          },
+          {
+            "role": "user",
+            "content": "No, my dog is called Max, not Bruno.",
+            "at": "2026-11-20T09:05:00Z"
+          }
+        ]
+      }
+    ],
+    "operations": [
+      {
+        "op": "consolidate"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "recall",
+        "query": "what is my dog called",
+        "k": 3,
+        "expect": [
+          "max"
+        ],
+        "absent": [
+          "bruno."
+        ]
+      },
+      {
+        "kind": "count",
+        "filters": {
+          "status": "superseded",
+          "type": "semantic"
+        },
+        "equals": 1
+      },
+      {
+        "kind": "consolidation_report",
+        "field": "corrected",
+        "expect": [
+          "bruno",
+          "max"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "preference_and_project_change",
+    "behaviour": "A changed preference and a changed project status replace the old ones",
+    "requires": [
+      "consolidation",
+      "extraction"
+    ],
+    "sessions": [
+      {
+        "id": "ses_c3",
+        "started_at": "2026-11-18T09:00:00Z",
+        "ended_at": "2026-11-18T09:30:00Z",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Call me Captain.",
+            "at": "2026-11-18T09:00:00Z"
+          },
+          {
+            "role": "user",
+            "content": "The mobile app is blocked on the API keys.",
+            "at": "2026-11-18T09:10:00Z"
+          }
+        ]
+      },
+      {
+        "id": "ses_c4",
+        "started_at": "2026-11-21T09:00:00Z",
+        "ended_at": "2026-11-21T09:30:00Z",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Please call me Boss.",
+            "at": "2026-11-21T09:00:00Z"
+          },
+          {
+            "role": "user",
+            "content": "The mobile app is now shipped.",
+            "at": "2026-11-21T09:10:00Z"
+          }
+        ]
+      }
+    ],
+    "operations": [
+      {
+        "op": "consolidate"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "store",
+        "store": "semantic",
+        "method": "preference",
+        "args": [
+          "salutation"
+        ],
+        "expect": [
+          "boss"
+        ],
+        "absent": [
+          "captain"
+        ]
+      },
+      {
+        "kind": "recall",
+        "query": "mobile app status",
+        "k": 3,
+        "expect": [
+          "shipped"
+        ],
+        "absent": [
+          "blocked"
+        ]
+      },
+      {
+        "kind": "count",
+        "filters": {
+          "type": "episodic",
+          "category": "conversation"
+        },
+        "equals": 2
+      }
+    ]
+  },
+  {
+    "id": "commitments_from_conversation",
+    "behaviour": "'Remind me\u2026' and 'I'll\u2026 by\u2026' become dated commitments",
+    "requires": [
+      "consolidation",
+      "extraction",
+      "stores"
+    ],
+    "sessions": [
+      {
+        "id": "ses_c5",
+        "started_at": "$now",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Remind me to renew the domain tomorrow at 9am.",
+            "at": "$now"
+          },
+          {
+            "role": "user",
+            "content": "I'll send Ravi the budget sheet by Friday.",
+            "at": "$now"
+          }
+        ]
+      }
+    ],
+    "operations": [
+      {
+        "op": "consolidate"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "store",
+        "store": "prospective",
+        "method": "pending",
+        "expect": [
+          "renew the domain",
+          "budget sheet"
+        ]
+      },
+      {
+        "kind": "store",
+        "store": "prospective",
+        "method": "pending",
+        "first": "renew the domain"
+      }
+    ]
+  },
+  {
+    "id": "secrets_never_stored",
+    "behaviour": "Passwords, keys and codes in conversation are never extracted into memory",
+    "requires": [
+      "consolidation",
+      "extraction"
+    ],
+    "sessions": [
+      {
+        "id": "ses_c6",
+        "started_at": "2026-11-20T09:00:00Z",
+        "ended_at": "2026-11-20T09:10:00Z",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Remember that my wifi password is hunter2-secret.",
+            "at": "2026-11-20T09:00:00Z"
+          },
+          {
+            "role": "user",
+            "content": "Note that the API key is gsk_abcdefghijklmnopqrstuv123456.",
+            "at": "2026-11-20T09:01:00Z"
+          },
+          {
+            "role": "user",
+            "content": "Remember that the router is in the hallway.",
+            "at": "2026-11-20T09:02:00Z"
+          }
+        ]
+      }
+    ],
+    "operations": [
+      {
+        "op": "consolidate"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "recall",
+        "query": "where is the router",
+        "k": 2,
+        "expect": [
+          "hallway"
+        ]
+      },
+      {
+        "kind": "count",
+        "filters": {
+          "type": "semantic"
+        },
+        "equals": 1
+      }
+    ]
+  },
+  {
+    "id": "hedged_is_unconfirmed",
+    "behaviour": "'I think\u2026' is remembered as unconfirmed, never as verified",
+    "requires": [
+      "consolidation",
+      "extraction"
+    ],
+    "sessions": [
+      {
+        "id": "ses_c7",
+        "started_at": "2026-11-20T09:00:00Z",
+        "ended_at": "2026-11-20T09:10:00Z",
+        "messages": [
+          {
+            "role": "user",
+            "content": "I think Meera works at Globex.",
+            "at": "2026-11-20T09:00:00Z"
+          }
+        ]
+      }
+    ],
+    "operations": [
+      {
+        "op": "consolidate"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "recall",
+        "query": "where does Meera work",
+        "k": 1,
+        "expect": [
+          "globex"
+        ]
+      },
+      {
+        "kind": "count",
+        "filters": {
+          "type": "semantic",
+          "verification_status": "verified"
+        },
+        "equals": 0
+      }
+    ]
+  },
+  {
+    "id": "consolidation_is_idempotent",
+    "behaviour": "Running consolidation twice adds nothing the second time",
+    "requires": [
+      "consolidation",
+      "extraction"
+    ],
+    "sessions": [
+      {
+        "id": "ses_c8",
+        "started_at": "2026-11-20T09:00:00Z",
+        "ended_at": "2026-11-20T09:10:00Z",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Remember that backups run at 2 am.",
+            "at": "2026-11-20T09:00:00Z"
+          },
+          {
+            "role": "user",
+            "content": "We decided to keep backups for 30 days.",
+            "at": "2026-11-20T09:01:00Z"
+          }
+        ]
+      }
+    ],
+    "operations": [
+      {
+        "op": "consolidate"
+      },
+      {
+        "op": "consolidate"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "count",
+        "filters": {
+          "status": null
+        },
+        "equals": 3
+      },
+      {
+        "kind": "consolidation_report",
+        "field": "stored",
+        "absent": [
+          "backups"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "failures_become_lessons",
+    "behaviour": "A failure that was fixed becomes a lesson; a repeated one an insight",
+    "requires": [
+      "consolidation",
+      "stores"
+    ],
+    "operations": [
+      {
+        "op": "store",
+        "store": "episodic",
+        "method": "record",
+        "args": [
+          "Send failed"
+        ],
+        "kwargs": {
+          "outcome": "failure",
+          "agent": "email",
+          "goal": "send email",
+          "error": "Gmail token expired",
+          "resolution": "Reconnect Google in Settings"
+        }
+      },
+      {
+        "op": "store",
+        "store": "episodic",
+        "method": "record",
+        "args": [
+          "Send failed again"
+        ],
+        "kwargs": {
+          "outcome": "failure",
+          "agent": "email",
+          "goal": "send email",
+          "error": "Gmail token expired"
+        }
+      },
+      {
+        "op": "consolidate"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "store",
+        "store": "reflective",
+        "method": "lessons_for",
+        "args": [
+          "gmail token expired"
+        ],
+        "expect": [
+          "reconnect google"
+        ]
+      },
+      {
+        "kind": "store",
+        "store": "reflective",
+        "method": "insights",
+        "expect": [
+          "2 times"
+        ]
+      }
+    ]
+  }
+]

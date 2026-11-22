@@ -45,15 +45,22 @@ ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_TOKEN_ROOT = ROOT / "data" / "oauth_tokens"
 
 GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar"
+GMAIL_MODIFY_SCOPE = "https://www.googleapis.com/auth/gmail.modify"         # archive / label / mark read
+CONTACTS_SCOPE = "https://www.googleapis.com/auth/contacts.readonly"         # find people by name
+DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.readonly"               # search Google Drive online
 
-# One shared Google connector covers Gmail and Calendar. Accounts connected before
-# a scope was added must reconnect once (get_client(require_scopes=...) detects it).
+# One shared Google connector covers Gmail, Calendar, Contacts and Drive. Accounts
+# connected before a scope was added must reconnect once: get_client(require_scopes=...)
+# raises MissingScopeError and missing_scopes() tells Settings to offer a reconnect.
 GOOGLE_SCOPES = [
     "openid",
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/gmail.send",
+    GMAIL_MODIFY_SCOPE,
     GOOGLE_CALENDAR_SCOPE,
+    CONTACTS_SCOPE,
+    DRIVE_SCOPE,
 ]
 GOOGLE_GMAIL_SCOPES = GOOGLE_SCOPES  # backwards-compatible name
 
@@ -363,6 +370,15 @@ class OAuthConnector:
     # ── Accounts / refresh ─────────────────────────────────────
     def accounts(self) -> List[str]:
         return self.store.accounts()
+
+    def missing_scopes(self, email: Optional[str] = None) -> List[str]:
+        """Scopes this connector asks for that the stored account never granted (it was
+        connected before they were added). Non-empty = offer a reconnect. No network."""
+        try:
+            granted = set(self.store.load(self._pick_account(email)).get("scopes") or [])
+        except OAuthError:
+            return []
+        return [s for s in self.scopes if s not in granted and s != "openid"]
 
     def _pick_account(self, email: Optional[str]) -> str:
         if email:

@@ -1,0 +1,71 @@
+[
+  {
+    "id": "agent_sharing",
+    "behaviour": "What one agent learns reaches the agents that need it, and only those",
+    "requires": ["agent_memory_interface"],
+    "memories": [
+      {"content": "Ravi prefers email over calls.", "type": "semantic", "category": "contact_fact", "entity": "Ravi",
+       "entity_kind": "person", "source_type": "user_stated"},
+      {"content": "Ravi's birthday is on 3 March.", "type": "semantic", "category": "contact_fact", "entity": "Ravi",
+       "source_type": "user_stated"},
+      {"content": "No meetings before 10 am.", "type": "semantic", "category": "preference", "entity": "operator",
+       "source_type": "user_confirmed"},
+      {"content": "The C: drive is the small SSD; big files go on D:.", "type": "semantic", "category": "system_config",
+       "source_type": "user_confirmed"}
+    ],
+    "operations": [
+      {"op": "store", "store": "prospective", "method": "commit", "args": ["Send Ravi the budget sheet"],
+       "kwargs": {"due_at": "2026-11-27T17:00:00Z", "counterpart": "Ravi", "agent": "email"}},
+      {"op": "agent_run", "agent": "system_ops", "goal": "free up disk space on C:", "outcome": "failure",
+       "summary": "Disk cleanup needs admin rights", "tools": ["disk_cleanup"]}
+    ],
+    "checks": [
+      {"kind": "agent_context", "agent": "email", "query": "write to Ravi about the budget",
+       "expect": ["prefers email over calls", "budget sheet"]},
+      {"kind": "agent_context", "agent": "calendar", "query": "plan my meetings on Friday the 27th",
+       "expect": ["no meetings before 10 am"]},
+      {"kind": "agent_context", "agent": "calendar", "query": "what's due for Ravi this week",
+       "expect": ["budget sheet"]},
+      {"kind": "agent_context", "agent": "system_ops", "query": "free up disk space on C:",
+       "expect": ["admin rights", "small ssd"], "absent": ["ravi", "birthday"]},
+      {"kind": "agent_context", "agent": "system_ops", "query": "what is Ravi's birthday", "absent": ["3 march"]}
+    ]
+  },
+  {
+    "id": "execution_history",
+    "behaviour": "An agent sees its own earlier failure, and a later success is recorded as the fix",
+    "requires": ["agent_memory_interface", "consolidation"],
+    "operations": [
+      {"op": "agent_run", "agent": "email", "goal": "send the invoice to Priya", "outcome": "failure",
+       "summary": "Gmail token expired", "task_id": "t1"},
+      {"op": "agent_run", "agent": "email", "goal": "send the invoice to Priya", "outcome": "success",
+       "summary": "Sent after reconnecting Google", "task_id": "t2"},
+      {"op": "agent_run", "agent": "calendar", "goal": "move the dentist to Friday", "outcome": "success",
+       "summary": "Moved"},
+      {"op": "consolidate"}
+    ],
+    "checks": [
+      {"kind": "agent_context", "agent": "email", "query": "send the invoice to Priya again",
+       "expect": ["gmail token expired", "worked on a later try"]},
+      {"kind": "store", "store": "reflective", "method": "lessons_for", "args": ["send the invoice"],
+       "expect": ["reconnecting google"]},
+      {"kind": "store", "store": "episodic", "method": "recent", "kwargs": {"agent": "calendar"},
+       "expect": ["dentist"], "absent": ["invoice"]}
+    ]
+  },
+  {
+    "id": "task_working_memory",
+    "behaviour": "Agents on one task share its scratch notes; other tasks don't see them",
+    "requires": ["agent_memory_interface", "stores"],
+    "operations": [
+      {"op": "store", "store": "working", "method": "set", "args": ["draft_to", "ravi@example.com"],
+       "kwargs": {"scope": "task:t9"}},
+      {"op": "store", "store": "working", "method": "set", "args": ["folder", "Downloads"],
+       "kwargs": {"scope": "task:t10"}}
+    ],
+    "checks": [
+      {"kind": "store", "store": "working", "method": "items", "args": ["task:t9"], "expect": ["ravi@example.com"],
+       "absent": ["downloads"]}
+    ]
+  }
+]

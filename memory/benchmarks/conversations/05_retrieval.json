@@ -1,0 +1,453 @@
+[
+  {
+    "id": "project_continuation",
+    "behaviour": "Recover the latest project state, decisions, open objectives and past errors",
+    "requires": [
+      "context_builder",
+      "stores",
+      "entity_resolution"
+    ],
+    "sessions": [
+      {
+        "id": "ses_proj_1",
+        "started_at": "2026-11-10T09:00:00Z",
+        "ended_at": "2026-11-10T11:00:00Z",
+        "messages": [
+          {
+            "role": "user",
+            "content": "We're building the assistant project's memory system today.",
+            "at": "2026-11-10T09:00:00Z"
+          },
+          {
+            "role": "jarvis",
+            "content": "Starting with the SQLite store.",
+            "at": "2026-11-10T09:00:20Z"
+          }
+        ]
+      }
+    ],
+    "memories": [
+      {
+        "content": "Assistant project status: milestone 2 (typed memory stores) is finished; milestone 3 is next.",
+        "type": "semantic",
+        "category": "project_state",
+        "entity": "assistant project",
+        "entity_kind": "project",
+        "source_type": "user_confirmed"
+      },
+      {
+        "content": "Decision: SQLite is the primary memory store; vectors live in the same database.",
+        "type": "semantic",
+        "category": "decision",
+        "entity": "assistant project",
+        "source_type": "user_confirmed"
+      },
+      {
+        "content": "Decision: agents never touch SQLite directly, only through the memory manager.",
+        "type": "semantic",
+        "category": "decision",
+        "entity": "assistant project",
+        "source_type": "user_confirmed"
+      },
+      {
+        "content": "Wire memory retrieval into the reasoning loop.",
+        "type": "prospective",
+        "category": "commitment",
+        "entity": "assistant project",
+        "source_type": "user_stated",
+        "data": {
+          "state": "pending",
+          "owner": "jarvis"
+        },
+        "tags": [
+          "state:pending"
+        ]
+      },
+      {
+        "content": "Tests wrote into the real data folder.",
+        "type": "episodic",
+        "category": "event",
+        "entity": "assistant project",
+        "source_type": "tool_result",
+        "dedupe": false,
+        "data": {
+          "outcome": "failure",
+          "error": "real files touched",
+          "resolution": "tests point JARVIS_MEMORY_DB at a temp folder"
+        }
+      },
+      {
+        "content": "Ravi likes cricket.",
+        "type": "semantic",
+        "category": "contact_fact",
+        "entity": "Ravi"
+      },
+      {
+        "content": "The office wifi is called Stark-5G.",
+        "type": "semantic",
+        "category": "system_config"
+      },
+      {
+        "content": "Bought a new keyboard last week.",
+        "type": "episodic",
+        "category": "event",
+        "dedupe": false
+      }
+    ],
+    "checks": [
+      {
+        "kind": "context",
+        "query": "Continue working on the assistant project",
+        "budget": 600,
+        "max_tokens": 600,
+        "sections": [
+          "Project state",
+          "Decisions",
+          "Open commitments",
+          "Past errors and fixes"
+        ],
+        "expect": [
+          "milestone 3 is next",
+          "sqlite is the primary",
+          "only through the memory manager",
+          "wire memory retrieval",
+          "temp folder"
+        ],
+        "absent": [
+          "cricket",
+          "stark-5g",
+          "keyboard"
+        ]
+      },
+      {
+        "kind": "context",
+        "query": "where did we leave off with the assistant?",
+        "budget": 600,
+        "expect": [
+          "milestone 3 is next"
+        ],
+        "absent": [
+          "cricket"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "continuation_from_focus",
+    "behaviour": "'Pick up where we left off' resumes the project in focus without naming it",
+    "requires": [
+      "context_builder",
+      "stores"
+    ],
+    "operations": [
+      {
+        "op": "remember",
+        "memory": {
+          "content": "Weather dashboard status: the radar layer renders; the legend is broken.",
+          "type": "semantic",
+          "category": "project_state",
+          "entity": "weather dashboard",
+          "entity_kind": "project",
+          "source_type": "user_confirmed"
+        }
+      },
+      {
+        "op": "remember",
+        "memory": {
+          "content": "Assistant project status: done for today.",
+          "type": "semantic",
+          "category": "project_state",
+          "entity": "assistant project",
+          "entity_kind": "project"
+        }
+      },
+      {
+        "op": "store",
+        "store": "working",
+        "method": "set_focus",
+        "args": [
+          "weather dashboard"
+        ]
+      }
+    ],
+    "checks": [
+      {
+        "kind": "context",
+        "query": "let's pick up where we left off",
+        "expect": [
+          "legend is broken"
+        ],
+        "absent": [
+          "done for today"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "alias_resolution",
+    "behaviour": "Different references to the same person resolve to one entity",
+    "requires": [
+      "entity_resolution",
+      "hybrid"
+    ],
+    "memories": [
+      {
+        "content": "Prefers to be called after 6 pm.",
+        "type": "semantic",
+        "category": "contact_fact",
+        "entity": "Ravi Kumar",
+        "entity_kind": "person",
+        "source_type": "user_stated"
+      },
+      {
+        "content": "Prefers email over calls.",
+        "type": "semantic",
+        "category": "contact_fact",
+        "entity": "Priya Shah",
+        "entity_kind": "person",
+        "source_type": "user_stated"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "recall",
+        "query": "when should I call Ravi's phone?",
+        "k": 1,
+        "expect": [
+          "after 6 pm"
+        ],
+        "absent": [
+          "email over calls"
+        ]
+      },
+      {
+        "kind": "recall",
+        "query": "what does ravi kumar prefer",
+        "k": 1,
+        "expect": [
+          "after 6 pm"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "typo_tolerance",
+    "behaviour": "A misspelled request still finds the memory",
+    "requires": [
+      "vector"
+    ],
+    "memories": [
+      {
+        "content": "To reconnect Google: open Settings > MAIL and click Reconnect.",
+        "type": "procedural",
+        "category": "workflow",
+        "source_type": "user_confirmed"
+      },
+      {
+        "content": "The garage door code changes every month.",
+        "type": "semantic",
+        "category": "home"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "recall",
+        "query": "how do I reconect my gogle acount",
+        "k": 1,
+        "expect": [
+          "reconnect google"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "paraphrase_recall",
+    "behaviour": "A request in different words finds the memory by meaning",
+    "requires": [
+      "neural_embeddings"
+    ],
+    "memories": [
+      {
+        "content": "Prefers short spoken answers, one or two sentences.",
+        "type": "semantic",
+        "category": "preference",
+        "entity": "operator",
+        "source_type": "user_confirmed"
+      },
+      {
+        "content": "The car is due for servicing in January.",
+        "type": "semantic",
+        "category": "personal"
+      },
+      {
+        "content": "Backups run every night at 2 am.",
+        "type": "semantic",
+        "category": "system_config"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "recall",
+        "query": "keep your replies brief",
+        "k": 1,
+        "expect": [
+          "short spoken answers"
+        ]
+      },
+      {
+        "kind": "recall",
+        "query": "when does my vehicle need maintenance",
+        "k": 1,
+        "expect": [
+          "servicing"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "graph_neighbour",
+    "behaviour": "A question about one entity reaches facts linked to it",
+    "requires": [
+      "hybrid",
+      "stores"
+    ],
+    "operations": [
+      {
+        "op": "store",
+        "store": "semantic",
+        "method": "assert_fact",
+        "args": [
+          "Krish",
+          "leads",
+          "Project Atlas"
+        ],
+        "kwargs": {
+          "subject_kind": "person",
+          "object_kind": "project"
+        }
+      },
+      {
+        "op": "store",
+        "store": "semantic",
+        "method": "assert_fact",
+        "args": [
+          "Project Atlas",
+          "ships on",
+          "March 3"
+        ],
+        "kwargs": {
+          "subject_kind": "project"
+        }
+      },
+      {
+        "op": "store",
+        "store": "semantic",
+        "method": "assert_fact",
+        "args": [
+          "Meera",
+          "leads",
+          "Project Borealis"
+        ],
+        "kwargs": {
+          "subject_kind": "person",
+          "object_kind": "project"
+        }
+      }
+    ],
+    "checks": [
+      {
+        "kind": "recall",
+        "query": "what is Krish working on",
+        "k": 3,
+        "expect": [
+          "krish leads project atlas",
+          "ships on march 3"
+        ],
+        "absent": [
+          "borealis"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "time_window_recall",
+    "behaviour": "'What did I do yesterday' returns yesterday's events, not older ones",
+    "requires": [
+      "hybrid"
+    ],
+    "memories": [
+      {
+        "content": "Fixed the calendar timezone bug.",
+        "type": "episodic",
+        "category": "event",
+        "dedupe": false,
+        "created_at": "$yesterday"
+      },
+      {
+        "content": "Set up the Groq key.",
+        "type": "episodic",
+        "category": "event",
+        "dedupe": false,
+        "created_at": "2025-01-10T10:00:00Z"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "recall",
+        "query": "what did I do yesterday",
+        "k": 3,
+        "expect": [
+          "calendar timezone"
+        ],
+        "absent": [
+          "groq"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "irrelevant_stays_out",
+    "behaviour": "Unrelated memories are not padded into the answer",
+    "requires": [
+      "hybrid"
+    ],
+    "memories": [
+      {
+        "content": "The office wifi is called Stark-5G.",
+        "type": "semantic",
+        "category": "system_config",
+        "source_type": "user_confirmed",
+        "importance": 1.0
+      },
+      {
+        "content": "Mum's birthday is on 9 August.",
+        "type": "semantic",
+        "category": "personal",
+        "source_type": "user_confirmed",
+        "importance": 1.0
+      }
+    ],
+    "checks": [
+      {
+        "kind": "recall",
+        "query": "what's the wifi network name",
+        "k": 5,
+        "expect": [
+          "stark-5g"
+        ],
+        "absent": [
+          "birthday"
+        ]
+      },
+      {
+        "kind": "recall",
+        "query": "recipe for banana bread",
+        "k": 5,
+        "absent": [
+          "stark-5g",
+          "birthday"
+        ]
+      }
+    ]
+  }
+]

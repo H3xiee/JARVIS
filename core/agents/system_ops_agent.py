@@ -1083,6 +1083,51 @@ def op_clean_temp(platform: str, older_than_h: float = 24.0) -> OpOrProblem:
               replay={"op": "clean_temp", "dirs": [str(d) for d in dirs], "hours": older_than_h}), None
 
 
+def find_large_files(roots: List[Path], min_bytes: int, limit: int = 15, budget_s: float = 10.0) -> AgentResult:
+    """The biggest files under ``roots`` (what's eating the disk). Time-budgeted; skips
+    system trees and online-only cloud placeholders. Blocking."""
+    deadline = time.monotonic() + budget_s
+    found: List[Tuple[int, str]] = []
+    folders: Dict[str, int] = {}
+    complete = True
+    skip = {"$recycle.bin", "system volume information", "windows", "program files", "program files (x86)",
+            "programdata", "node_modules", ".git", "__pycache__", "appdata"}
+    for root in roots:
+        for dirpath, dirnames, filenames in os.walk(root, topdown=True):
+            if time.monotonic() > deadline:
+                complete = False
+                break
+            dirnames[:] = [d for d in dirnames if d.lower() not in skip and not d.startswith(".")]
+            for f in filenames:
+                path = os.path.join(dirpath, f)
+                try:
+                    st = os.lstat(path)
+                except OSError:
+                    continue
+                if getattr(st, "st_file_attributes", 0) & 0x441000:  # offline / recall-on-open: not on disk
+                    continue
+                if st.st_size >= min_bytes:
+                    found.append((st.st_size, path))
+                top = os.path.relpath(dirpath, root).split(os.sep)[0]
+                key = os.path.join(str(root), top) if top != "." else str(root)
+                folders[key] = folders.get(key, 0) + st.st_size
+        if not complete:
+            break
+    found.sort(reverse=True)
+    biggest = sorted(folders.items(), key=lambda kv: -kv[1])[:5]
+    data = {"files": [{"path": p, "size": _human(n), "bytes": n} for n, p in found[:limit]],
+            "largest_folders": [{"path": p, "size": _human(n)} for p, n in biggest], "complete": complete}
+    if not found:
+        return AgentResult(status="done", data=data,
+                           summary=f"No files over {_human(min_bytes)} found" + ("" if complete else " (stopped early)"))
+    top = "; ".join(f"{os.path.basename(p)} ({_human(n)})" for n, p in found[:4])
+    folders_txt = ", ".join(f"{os.path.basename(p) or p} ({s_})" for p, s_ in ((p, _human(n)) for p, n in biggest[:3]))
+    return AgentResult(status="done", data=data,
+                       summary=f"{len(found)} file{'s' if len(found) != 1 else ''} over {_human(min_bytes)}"
+                               + ("" if complete else " (searched for a while, not everything)")
+                               + f". Biggest: {top}. Largest folders: {folders_txt}")
+
+
 def _hours(h: float) -> str:
     return "1 day" if h == 24 else (f"{h / 24:g} days" if h % 24 == 0 else f"{h:g} hours")
 
@@ -1250,6 +1295,8 @@ class SystemOpsAgent(BaseAgent):
         "open", "launch", "close", "quit", "switch to", "volume", "mute", "unmute", "louder", "quieter",
         "brightness", "wifi", "wi-fi", "bluetooth", "recycle bin", "trash", "undo", "undelete", "temp files",
         "clean up", "cpu", "watch my system", "monitor my system", "stop watching", "dry run", "how full",
+        "clipboard", "copy that", "screenshot", "my screen", "on screen", "internet", "connection", "network",
+        "ping", "online", "offline", "disk space", "large files", "big files",
     )
     # Action requests that mention files ("delete my notes file") are ours, not research.
     route_overrides = ("local_research",)
@@ -1429,6 +1476,16 @@ class SystemOpsAgent(BaseAgent):
             tool("list_directory", "List a folder's contents.", {"path": {"type": "string"}}, (), "read", R,
                  lambda a: op_list_files(P, str(a.get("path") or "")), untrusted=True),
             tool("git_status", "git status of JARVIS's working folder.", {}, (), "read", R, lambda a: op_git_status(P)),
+            tool("find_large_files", "What's eating the disk: the biggest files (and folders) in the operator's "
+                                     "profile, or on every drive with everywhere=true.",
+                 {"min_size_mb": {"type": "number", "description": "Default 200"},
+                  "everywhere": {"type": "boolean"}, "limit": {"type": "integer"}}, (), "read", R,
+                 lambda a: Op("python", "find large files", RiskTier.READ,
+                              fn=lambda: find_large_files(_large_roots(bool(a.get("everywhere"))),
+                                                          int(float(a.get("min_size_mb") or 200) * 1024 ** 2),
+                                                          max(1, min(30, int(a.get("limit") or 15))),
+                                                          20.0 if a.get("everywhere") else 10.0)),
+                 progress="Looking for what's taking the space", untrusted=True),
             tool("radio_status", "Whether Wi-Fi or Bluetooth is on (and the Wi-Fi network).",
                  {"radio": {"type": "string", "enum": ["wifi", "bluetooth"]}}, ("radio",), "read", R,
                  lambda a: op_radio(P, _radio_kind(a), None), progress="Checking the radio"),
@@ -1475,12 +1532,72 @@ class SystemOpsAgent(BaseAgent):
             tool("power", "Shut down or restart the computer (30-second delay on Windows).",
                  {"action": {"type": "string", "enum": ["shutdown", "restart"]}}, ("action",), "action", D,
                  lambda a: op_power(P, str(a.get("action")))),
+            ToolSpec("network_status", "Is the internet working and how well: online or not, name lookups (DNS), "
+                                       "response time, current traffic, this computer's local address. For 'why is "
+                                       "the internet slow'. (Wi-Fi on/off and network name: radio_status.)",
+                     {"type": "object", "properties": {}}, "read", RiskTier.READ, self.network_status,
+                     progress="Checking the connection"),
+            ToolSpec("screenshot", "Look at the operator's screen and describe it ('what's on my screen'). Only "
+                                   "when the operator asks: the image goes to the vision model and is deleted after.",
+                     {"type": "object", "properties": {"question": {"type": "string", "description": "What they want to know about it"}}},
+                     "action", RiskTier.REVERSIBLE, self.screenshot, untrusted_output=True, progress="Looking at your screen"),
+            ToolSpec("read_clipboard", "What's on the clipboard (passwords and keys are hidden).",
+                     {"type": "object", "properties": {}}, "read", RiskTier.READ, self.read_clipboard,
+                     untrusted_output=True, progress="Checking the clipboard"),
+            ToolSpec("copy_to_clipboard", "Put text on the clipboard so the operator can paste it.",
+                     {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
+                     "action", RiskTier.REVERSIBLE, self.copy_to_clipboard, progress="Copying it"),
             ToolSpec("system_watch", "Start, stop or check the background watch for CPU spikes, full disks, low "
                                      "memory and frozen apps.",
                      {"type": "object", "properties": {"action": {"type": "string", "enum": ["start", "stop", "check"]}},
                       "required": ["action"]},
                      "action", REV, self.system_watch, progress="Checking the system"),
         ]
+
+    # ── Network / screen / clipboard (desktop_tools.py) ────────
+    async def network_status(self, args: dict, ctx: dict) -> AgentResult:
+        from core.agents import desktop_tools
+        try:
+            st = await asyncio.to_thread(desktop_tools.network_status)
+        except Exception as exc:
+            return AgentResult(status="failed", summary=f"Couldn't check the network ({type(exc).__name__}).")
+        return AgentResult(status="done", data=st, summary=desktop_tools.describe_network(st))
+
+    async def screenshot(self, args: dict, ctx: dict) -> AgentResult:
+        from core.agents import desktop_tools
+        path, problem = await asyncio.to_thread(desktop_tools.capture_screen)
+        if problem:
+            return AgentResult(status="failed", summary=problem)
+        try:
+            text, problem = await asyncio.to_thread(desktop_tools.describe_image, path, str(args.get("question") or ""))
+        finally:
+            desktop_tools._remove(path)  # never keep pictures of the operator's screen
+        if problem:
+            return AgentResult(status="failed", summary=problem)
+        return AgentResult(status="done", summary=text, data={"description": text})
+
+    async def read_clipboard(self, args: dict, ctx: dict) -> AgentResult:
+        from core.agents import desktop_tools
+        text, problem = await asyncio.to_thread(desktop_tools.read_clipboard)
+        if problem:
+            return AgentResult(status="failed", summary=problem)
+        if not (text or "").strip():
+            return AgentResult(status="done", summary="The clipboard is empty.", data={"text": ""})
+        shown, hidden = desktop_tools.safe_clipboard_text(text)
+        note = " (I've hidden a password or key in it)" if hidden else ""
+        preview = shown if len(shown) <= 200 else shown[:200] + "…"
+        return AgentResult(status="done", data={"text": shown, "characters": len(text), "hidden_secret": hidden},
+                           summary=f"The clipboard has {len(text):,} characters{note}: {preview}")
+
+    async def copy_to_clipboard(self, args: dict, ctx: dict) -> AgentResult:
+        from core.agents import desktop_tools
+        text = str(args.get("text") or "")
+        if not text.strip():
+            return AgentResult(status="failed", summary="There's nothing to copy.")
+        problem = await asyncio.to_thread(desktop_tools.write_clipboard, text)
+        if problem:
+            return AgentResult(status="failed", summary=problem)
+        return AgentResult(status="done", summary=f"Copied {len(text):,} characters; paste wherever you like.")
 
     async def system_watch(self, args: dict, ctx: dict) -> AgentResult:
         action = str(args.get("action") or "check")
@@ -1571,6 +1688,17 @@ class SystemOpsAgent(BaseAgent):
             if agent._guard(op):  # a restored action is checked again, as if it were new
                 return None
         return lambda: agent._run_ops(ops)  # type: ignore[arg-type]
+
+
+def _large_roots(everywhere: bool) -> List[Path]:
+    if not everywhere:
+        return [Path.home()]
+    if os.name == "nt":
+        import string
+        return [Path(f"{d}:\\") for d in string.ascii_uppercase if os.path.isdir(f"{d}:\\")]
+    if IS_WSL:
+        return [Path(f"/mnt/{d}") for d in _wsl_drive_mounts()] or [Path.home()]
+    return [Path("/")]
 
 
 def _radio_kind(args: dict) -> str:

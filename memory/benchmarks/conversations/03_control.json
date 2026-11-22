@@ -1,0 +1,156 @@
+[
+  {
+    "id": "memory_deletion",
+    "behaviour": "Remove the requested information from all relevant stores",
+    "requires": [
+      "deletion"
+    ],
+    "memories": [
+      {
+        "name": "secret",
+        "content": "Kavya is planning a surprise party for Arjun.",
+        "type": "semantic",
+        "category": "contact_fact",
+        "entity": "Kavya",
+        "entity_kind": "person",
+        "source_type": "user_stated",
+        "excerpt": "Kavya is planning a surprise party"
+      },
+      {
+        "content": "Kavya prefers calls after 6 pm.",
+        "type": "semantic",
+        "category": "contact_fact",
+        "entity": "Kavya",
+        "source_type": "user_stated"
+      },
+      {
+        "content": "The office wifi is called Stark-5G.",
+        "type": "semantic",
+        "category": "system_config",
+        "source_type": "user_stated"
+      }
+    ],
+    "operations": [
+      {
+        "op": "correct",
+        "memory": "secret",
+        "to": "Kavya is planning a surprise party for Arjun on Saturday."
+      },
+      {
+        "op": "forget_about",
+        "entity": "Kavya"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "recall",
+        "query": "kavya surprise party",
+        "k": 5,
+        "absent": [
+          "kavya",
+          "surprise"
+        ]
+      },
+      {
+        "kind": "absent_everywhere",
+        "text": "surprise party"
+      },
+      {
+        "kind": "absent_everywhere",
+        "text": "kavya"
+      },
+      {
+        "kind": "recall",
+        "query": "office wifi name",
+        "k": 1,
+        "expect": [
+          "stark-5g"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "crash_recovery",
+    "behaviour": "Restore consistent memory after interruption",
+    "requires": [
+      "crash_recovery"
+    ],
+    "memories": [
+      {
+        "content": "Backups run every night at 2 am.",
+        "type": "semantic",
+        "category": "system_config",
+        "source_type": "user_confirmed"
+      }
+    ],
+    "operations": [
+      {
+        "op": "crash_reopen",
+        "uncommitted": "This half-written memory must not survive."
+      }
+    ],
+    "checks": [
+      {
+        "kind": "integrity"
+      },
+      {
+        "kind": "recall",
+        "query": "when do backups run",
+        "k": 3,
+        "expect": [
+          "2 am"
+        ],
+        "absent": [
+          "half-written"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "export_import_roundtrip",
+    "behaviour": "Move memory between installations without loss",
+    "requires": [
+      "export",
+      "versioning"
+    ],
+    "memories": [
+      {
+        "name": "pet",
+        "content": "The operator's dog is called Bruno.",
+        "type": "semantic",
+        "category": "personal",
+        "entity": "operator",
+        "source_type": "user_stated"
+      }
+    ],
+    "operations": [
+      {
+        "op": "correct",
+        "memory": "pet",
+        "to": "The operator's dog is called Bruno; he is a beagle.",
+        "name": "pet2"
+      },
+      {
+        "op": "export_import"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "recall",
+        "query": "what is my dog called",
+        "k": 2,
+        "expect": [
+          "beagle"
+        ]
+      },
+      {
+        "kind": "versions",
+        "memory": "pet2",
+        "lineage": 2
+      },
+      {
+        "kind": "integrity"
+      }
+    ]
+  }
+]

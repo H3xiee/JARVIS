@@ -8848,12 +8848,20 @@ window.renderGoogleOAuthState = function(state, message) {
   const emailEl = document.getElementById('google-connected-email');
   const statusEl = document.getElementById('google-oauth-status');
   const connected = !!(state && state.connected && state.email);
-  if (btn) btn.style.display = connected ? 'none' : '';
+  const reconnect = connected && !!state.needs_reconnect;
+  if (btn) {
+    btn.style.display = (connected && !reconnect) ? 'none' : '';
+    btn.textContent = reconnect ? 'Reconnect to grant new permissions' : 'Connect Google Account';
+  }
   if (row) row.style.display = connected ? 'flex' : 'none';
   if (emailEl) emailEl.textContent = connected ? state.email : '';
   if (statusEl) {
-    statusEl.textContent = message || '';
-    statusEl.style.display = message ? '' : 'none';
+    const note = (!message && reconnect)
+      ? 'JARVIS now also asks for: ' + (state.missing || []).join(', ') +
+        ' (archive/label mail, find contacts, search Google Drive). Reconnect once to grant them.'
+      : '';
+    statusEl.textContent = message || note;
+    statusEl.style.display = (message || note) ? '' : 'none';
   }
 };
 

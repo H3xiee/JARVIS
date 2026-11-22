@@ -13,8 +13,9 @@ import os
 import re
 import time
 import json
+import weakref
 from datetime import datetime
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Optional, Dict, Any, List, Tuple
 from pathlib import Path
 
@@ -33,20 +34,73 @@ class ConversationTurn:
     latency_ms: float = 0.0
 
 
+_LIVE = weakref.WeakSet()
+
+
+def live_contexts():
+    return list(_LIVE)
+
+
 class ConversationContextManager:
     """Manages short-term rolling conversation turns and reference resolution."""
 
-    def __init__(self, max_turns: int = 8, log_path: Optional[Path] = None):
+    STATE_MAX_AGE_S = 1800.0  # restored after a restart only if the last turn is this recent
+
+    def __init__(self, max_turns: int = 8, log_path: Optional[Path] = None, state_path: Optional[Path] = None):
         self.max_turns = max_turns
         self.turns: List[ConversationTurn] = []
         self._pending_slot_request: Optional[Dict[str, Any]] = None
 
+        data_dir = Path(__file__).parent.parent / "data"
         if log_path is None:
-            self.log_path = Path(__file__).parent.parent / "data" / "intent_decisions.log"
+            self.log_path = data_dir / "intent_decisions.log"
         else:
             self.log_path = Path(log_path)
+        # The rolling window survives a restart; persisted only for the default setup or an explicit path.
+        if state_path is not None:
+            self.state_path: Optional[Path] = Path(state_path)
+        else:
+            self.state_path = data_dir / "conversation_state.json" if log_path is None else None
         try:
             self.log_path.parent.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+        self._load_state()
+        _LIVE.add(self)
+
+    def forget(self, needle: str) -> int:
+        """Drop rolling turns that mention needle (the operator asked JARVIS to forget it)."""
+        needle = str(needle or "").lower().strip()
+        if len(needle) < 3:
+            return 0
+        before = len(self.turns)
+        self.turns = [t for t in self.turns if needle not in json.dumps(asdict(t), default=str).lower()]
+        if len(self.turns) != before:
+            self._save_state()
+        return before - len(self.turns)
+
+    def _load_state(self):
+        if not self.state_path or not self.state_path.exists():
+            return
+        try:
+            data = json.loads(self.state_path.read_text(encoding="utf-8"))
+            turns = [ConversationTurn(**t) for t in data.get("turns", [])]
+            if turns and time.time() - turns[-1].timestamp < self.STATE_MAX_AGE_S:
+                self.turns = turns[-self.max_turns:]
+                pending = data.get("pending_slot_request")
+                if pending and time.time() - pending.get("timestamp", 0) < 45.0:
+                    self._pending_slot_request = pending
+        except Exception:
+            self.turns = []
+
+    def _save_state(self):
+        if not self.state_path:
+            return
+        try:
+            tmp = self.state_path.with_suffix(self.state_path.suffix + ".tmp")
+            tmp.write_text(json.dumps({"turns": [asdict(t) for t in self.turns],
+                                       "pending_slot_request": self._pending_slot_request}), encoding="utf-8")
+            tmp.replace(self.state_path)
         except Exception:
             pass
 
@@ -58,6 +112,7 @@ class ConversationContextManager:
 
     def clear_pending_slot(self):
         self._pending_slot_request = None
+        self._save_state()
 
     def set_pending_slot(self, intent: str, slot_name: str, prompt_asked: str):
         """Set a slot expectation from a question JARVIS just asked the user."""
@@ -67,6 +122,7 @@ class ConversationContextManager:
             "prompt_asked": prompt_asked,
             "timestamp": time.time(),
         }
+        self._save_state()
 
     def classify_and_resolve(self, user_text: str, current_target_name: Optional[str] = None, active_location: Optional[str] = None) -> Tuple[str, str, Dict[str, Any], str]:
         start_t = time.time()
@@ -278,7 +334,9 @@ class ConversationContextManager:
             classification=classification,
             intent=intent,
             entities=entities,
-            pending_slots=list(self._pending_slot_request.keys()) if self._pending_slot_request else [],
+            # the slot JARVIS is waiting for (was: the pending-request dict's keys, e.g. "intent", "slot"...)
+            pending_slots=[self._pending_slot_request["slot"]]
+            if self._pending_slot_request and self._pending_slot_request.get("slot") else [],
             resolved_query=resolved_query,
             agent_response=agent_response,
             latency_ms=latency_ms
@@ -286,6 +344,7 @@ class ConversationContextManager:
         self.turns.append(turn)
         if len(self.turns) > self.max_turns:
             self.turns = self.turns[-self.max_turns:]
+        self._save_state()
         return turn
 
     def get_context_summary_for_prompt(self) -> str:

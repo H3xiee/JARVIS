@@ -665,11 +665,24 @@ class JarvisSupervisor:
                         say=_say, audit=write_audit, pending_lookup=self._pending_for_draft,
                         on_outcome=_record_feedback)
         self.loops[run_id] = loop
-        self._meta[run_id] = {"agent": "supervisor", "goal": text, "context": _json_safe(context), "started": time.time()}
+        self._meta[run_id] = {"agent": "supervisor", "goal": text, "context": _json_safe(context), "started": time.time(),
+                              "origin": origin}
         self.narration.track_task(run_id, "supervisor", text)
-        self.active[run_id] = asyncio.create_task(self._run_loop(run_id, text, loop.run()), name=f"loop:{run_id}")
+        self.active[run_id] = asyncio.create_task(self._run_loop(run_id, text, self._remembering(loop)),
+                                                  name=f"loop:{run_id}")
         write_audit("dispatch_loop", task_id=run_id, goal=text, origin=origin, tools=[t.name for t in tools])
         return run_id
+
+    async def _remembering(self, loop: ToolLoop) -> AgentResult:
+        """Give the loop what JARVIS remembers about this goal, then run it."""
+        try:
+            trusted, other = await asyncio.wait_for(asyncio.to_thread(_memory_for, "supervisor", loop.goal), 3.0)
+            loop.add_memory(trusted, other)
+            if trusted or other:
+                write_audit("memory_context", task_id=loop.run_id, trusted=len(trusted), other=bool(other))
+        except Exception as exc:  # memory is a help, never a reason to fail the request
+            write_audit("memory_context_error", task_id=loop.run_id, error=type(exc).__name__)
+        return await loop.run()
 
     async def _run_loop(self, run_id: str, goal: str, step) -> Optional[AgentResult]:
         try:
@@ -696,8 +709,12 @@ class JarvisSupervisor:
             result.pending_action["loop_id"] = run_id
             self._add_pending(pending_id, owner, goal, result)
             return
-        self.loops.pop(run_id, None)
+        loop = self.loops.pop(run_id, None)
         write_audit("result", task_id=run_id, agent="supervisor", status=result.status, summary=result.summary)
+        meta = self._meta.get(run_id) or {}
+        _remember_run("supervisor", goal, result, task_id=run_id, origin=meta.get("origin", "user"),
+                      tools=[c[0] for c in getattr(loop, "_called", [])],
+                      failed=getattr(loop, "tool_failures", None))
         priority, kind = (PRIORITY_RESULT, "result") if result.status == "done" else (PRIORITY_FAILURE, "failure")
         self.narration.enqueue(result.summary, priority, kind=kind, task_id=run_id,
                                context={"agent": "supervisor", "goal": goal})
@@ -737,11 +754,12 @@ class JarvisSupervisor:
         write_audit("event", source=event.get("source"), kind=event.get("kind"), summary=event.get("summary"),
                     severity=event.get("severity"))
         snap = await self.world.snapshot()
-        if snap.busy() and event.get("severity") != "critical" and not event.get("timely"):
-            # In a meeting / quiet mode: hold routine news, deliver it afterwards in one go.
-            self.deferred_events.append(event)
+        reason = snap.hold_reason(event)
+        if reason:
+            # In a meeting, in quiet mode or away: hold it, deliver afterwards in one go.
+            self.deferred_events.append({**event, "_held": reason})
             del self.deferred_events[:-20]
-            write_audit("event_deferred", kind=event.get("kind"), in_meeting=snap.in_meeting, quiet=snap.quiet_mode)
+            write_audit("event_deferred", kind=event.get("kind"), reason=reason)
             self._schedule_flush()
             return []
         await self.flush_deferred(snap)
@@ -761,12 +779,13 @@ class JarvisSupervisor:
         if not self.deferred_events:
             return 0
         snap = snap or await self.world.snapshot()
-        if snap.busy():
+        if snap.busy() or snap.away:
             return 0
         held, self.deferred_events = self.deferred_events, []
         parts = list(dict.fromkeys(str(e.get("summary") or "").strip().rstrip(".") for e in held if e.get("summary")))
         if parts:
-            self.narration.enqueue("While you were busy: " + "; ".join(parts[:5])
+            lead = "While you were away" if all(e.get("_held") == "away" for e in held) else "While you were busy"
+            self.narration.enqueue(f"{lead}: " + "; ".join(parts[:5])
                                    + (f"; and {len(parts) - 5} more" if len(parts) > 5 else ""),
                                    PRIORITY_RESULT, kind="result", task_id=f"deferred-{uuid.uuid4().hex[:6]}",
                                    context={"agent": "supervisor"})
@@ -843,6 +862,8 @@ class JarvisSupervisor:
                 raise
             self.narration.finish_task(task_id)  # no more filler once we have an answer
             write_audit("result", task_id=task_id, agent=agent.name, status=result.status, summary=result.summary)
+            if result.status != "needs_confirmation":
+                _remember_run(agent.name, goal, result, task_id=task_id)
             self._announce(task_id, agent, goal, result, speak_done=announce)
             return result
         finally:
@@ -1106,6 +1127,8 @@ class JarvisSupervisor:
             self.narration.finish_task(run_id)
             write_audit("executed", task_id=run_id, agent=entry["agent"], status=outcome.status, summary=outcome.summary)
             loop_id = action.get("loop_id")
+            if not loop_id:
+                _remember_run(entry["agent"], entry["goal"], outcome, task_id=run_id, approved=True)
             if loop_id:
                 # A resumed tool loop: it may have finished, or paused again on a later step.
                 self._finish_loop_step(loop_id, entry["goal"], outcome)
@@ -1192,6 +1215,53 @@ class JarvisSupervisor:
         if bits:
             self.narration.enqueue("Since the restart: " + "; ".join(bits), PRIORITY_RESULT, kind="progress")
         self._save_state()
+
+
+def _memory_for(agent: str, goal: str):
+    """(operator-sourced lines, other remembered data) relevant to a goal, for a tool loop."""
+    from memory.core.agent_memory import agent_memory, enabled
+    if not enabled() or not str(goal or "").strip():
+        return [], ""
+    return agent_memory(agent).context_split(goal)
+
+
+_memory_pool = None
+
+
+def _memory_executor():
+    """One background writer: recording a run never blocks the event loop, and writes stay in order."""
+    global _memory_pool
+    if _memory_pool is None:
+        from concurrent.futures import ThreadPoolExecutor
+        _memory_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="agent-memory")
+    return _memory_pool
+
+
+def flush_memory_writes(timeout: float = 10.0) -> None:
+    """Wait until every queued run record is written (tests, shutdown)."""
+    if _memory_pool is not None:
+        _memory_pool.submit(lambda: None).result(timeout=timeout)
+
+
+def _remember_run(agent: str, goal: str, result: AgentResult, *, task_id: Optional[str] = None,
+                  origin: str = "user", tools=(), failed: Optional[dict] = None, approved: bool = False) -> None:
+    """Execution history: every finished run becomes an episode the agents can learn from."""
+    from memory.core.agent_memory import enabled
+    if not enabled() or not str(goal or "").strip():
+        return
+    outcome = "success" if result.status == "done" else "failure"
+    if outcome == "success" and failed:
+        outcome = "partial"
+    summary, tools, failed = result.summary, list(tools or ()), dict(failed or {})
+
+    def write():
+        try:
+            from memory.core.agent_memory import agent_memory
+            agent_memory(agent).record_run(goal, outcome, summary=summary, tools=tools, failed_tools=failed,
+                                           task_id=task_id, origin="approved" if approved else origin)
+        except Exception as exc:
+            write_audit("memory_record_error", task_id=task_id, error=type(exc).__name__)
+    _memory_executor().submit(write)
 
 
 def _record_feedback(tool: str, ok: bool, note: str = "") -> None:

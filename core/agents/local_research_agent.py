@@ -3,8 +3,10 @@
 exposed as tools for the supervisor's loop.
 
 Tools (category / risk):
-  read   search_files, search_drive, read_file, summarise_file, describe_folder
-  action open_file, reveal_file (local, reversible), favourite_folders
+  read   search_files, search_drive, recent_files, read_file, search_in_file,
+         summarise_file, describe_folder
+  action open_file, reveal_file, favourite_folders, write_file, move_files,
+         copy_files, undo_file_changes (local, reversible: see file_ops.py)
 
 The model passes structured arguments (query, file types, dates, sizes, folder,
 cloud, effort); there is no phrase parsing here.
@@ -37,17 +39,19 @@ import threading
 import time
 import zipfile
 import zlib
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from core.agents import file_ops
 from core.agents.base_agent import AgentResult, BaseAgent, RiskTier, ToolSpec
 from core.agents.trust import fence, new_nonce
 from modules import cloud_docs
 
 DRIVE_SCOPES = ("https://www.googleapis.com/auth/drive.readonly", "https://www.googleapis.com/auth/drive")
-NEEDS_DRIVE_SUMMARY = ("Google Drive search needs the 'drive.readonly' permission, which the shared Google "
-                       "connection doesn't request yet. Synced Drive folders on this PC are still searched by search_files.")
+NEEDS_DRIVE_SUMMARY = ("Google Drive search needs the 'drive.readonly' permission, which your Google account hasn't "
+                       "granted yet: reconnect it once in Settings ([MAIL] > Reconnect). Synced Drive folders on this "
+                       "PC are still searched by search_files.")
 EFFORTS = {"quick": 0.0, "normal": 4.0, "deep": 10.0}
 
 # ── Filters ─────────────────────────────────────────────────────
@@ -599,6 +603,46 @@ class LocalResearchAgent(BaseAgent):
                      obj({"action": {"type": "string", "enum": ["list", "add", "remove"]},
                           "path": {"type": "string"}}, ("action",)),
                      "action", REV, self.favourite_folders, progress=""),
+            ToolSpec("recent_files", "Files the operator changed recently, newest first ('what was I working on "
+                                     "yesterday'). No query needed.",
+                     obj({"days": {"type": "number", "description": "How far back (default 1)"},
+                          "file_types": {"type": "array", "items": {"type": "string"}},
+                          "folder": {"type": "string"}, "limit": {"type": "integer"}}),
+                     "read", R, self.recent_files, untrusted_output=True, progress="Looking at recent files"),
+            ToolSpec("search_in_file", "Find the passages of ONE document that answer a question (e.g. 'the "
+                                       "termination clause'), instead of reading the whole thing.",
+                     obj({**ref, "query": {"type": "string"}, "max_hits": {"type": "integer"}}, ("query",)),
+                     "read", R, self.search_in_file, untrusted_output=True, progress="Searching inside the document"),
+            ToolSpec("write_file", "Save text as a document (txt, md, csv, json, html...). Give a file name; it goes "
+                                   "to Documents/JARVIS unless the operator named a folder. Existing files are only "
+                                   "replaced (or appended to) when asked, with a backup kept.",
+                     obj({"name": {"type": "string", "description": "File name like 'meeting-notes.md'"},
+                          "content": {"type": "string"},
+                          "folder": {"type": "string", "description": "Only if the operator named one"},
+                          "overwrite": {"type": "boolean"}, "append": {"type": "boolean"}}, ("name", "content")),
+                     "action", REV, self.write_file, preview=self.write_preview,
+                     confirm=lambda a: bool(a.get("overwrite")), grounded_args=("folder",), progress="Saving it"),
+            ToolSpec("move_files", "Move files or folders into a folder: a profile folder ('documents'), a "
+                                   "subfolder name next to them ('PDFs'), or a path the operator gave. Pick them by "
+                                   "search result ids / exact paths in sources (never guess paths), or by from_folder "
+                                   "+ file_types ('the PDFs in Downloads'). With one source, new_name renames it. "
+                                   "Never overwrites; undoable. Moving more than 3 needs the operator's approval.",
+                     obj({"sources": {"type": "array", "items": {"type": "string"}},
+                          "from_folder": {"type": "string", "description": "e.g. 'downloads' or a path the operator gave"},
+                          "file_types": {"type": "array", "items": {"type": "string"}, "description": "With from_folder"},
+                          "destination": {"type": "string"}, "new_name": {"type": "string"}}),
+                     "action", REV, self.move_files, preview=self.move_preview,
+                     confirm=lambda a: len(a.get("sources") or []) > 3 or bool(a.get("from_folder")),
+                     grounded_args=("destination", "from_folder"),
+                     progress="Moving files"),
+            ToolSpec("copy_files", "Copy files or folders (result ids or paths) into a folder. Never overwrites; undoable.",
+                     obj({"sources": {"type": "array", "items": {"type": "string"}},
+                          "destination": {"type": "string"}}, ("sources", "destination")),
+                     "action", REV, self.copy_files, preview=self.copy_preview,
+                     confirm=lambda a: len(a.get("sources") or []) > 3, grounded_args=("destination",),
+                     progress="Copying files"),
+            ToolSpec("undo_file_changes", "Undo the last file write / move / copy JARVIS made.",
+                     obj({}), "action", REV, self.undo_file_changes, progress="Putting it back"),
         ]
 
     # ── Fallback entry point (no planning model) ───────────────
@@ -664,7 +708,8 @@ class LocalResearchAgent(BaseAgent):
         if effort not in EFFORTS:
             effort = "normal"
         contents = args.get("search_contents") is not False
-        limit = max(1, min(10, int(args.get("limit") or 5)))
+        # Listings by filter alone (e.g. to tidy a folder) may be longer than topic searches.
+        limit = max(1, min(10 if query else 50, int(args.get("limit") or 5)))
         if not query and not filters:
             return AgentResult(status="failed", summary="Give a query or at least one filter.")
         flt = describe_filters(filters)
@@ -1038,6 +1083,205 @@ class LocalResearchAgent(BaseAgent):
         where = "Explorer" if (os.name == "nt" or _wsl()) else ("Finder" if sys.platform == "darwin" else "the file manager")
         return AgentResult(status="done", summary=f"Showing {name} in {where}")
 
+    # ── Recent files / searching inside one ────────────────────
+    async def recent_files(self, args: dict, ctx: dict) -> AgentResult:
+        days = max(0.1, min(60.0, float(args.get("days") or 1)))
+        since = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S")
+        search = {"modified_after": since, "effort": "normal", "search_contents": False,
+                  "limit": max(1, min(30, int(args.get("limit") or 10)))}
+        for key in ("file_types", "folder"):
+            if args.get(key):
+                search[key] = args[key]
+        res = await self.search_files(search, ctx)
+        if res.status == "done" and isinstance(res.data, dict) and res.data.get("results"):
+            res.data["results"].sort(key=lambda r: str(r.get("modified") or ""), reverse=True)
+            top = "; ".join(f"{r['filename']} ({r.get('modified')})" for r in res.data["results"][:4])
+            res.summary = f"{len(res.data['results'])} files changed in the last {_days_text(days)}, newest: {top}"
+        elif res.status == "done":
+            res.summary = f"No files changed in the last {_days_text(days)} in the usual folders."
+        return res
+
+    async def search_in_file(self, args: dict, ctx: dict) -> AgentResult:
+        rec, problem = self._resolve(args, ctx)
+        if problem:
+            return problem
+        query = str(args.get("query") or "").strip()
+        if not query:
+            return AgentResult(status="failed", summary="What should I look for in it?")
+        path = rec.get("path") or ""
+        if not path or rec.get("is_dir") or os.path.isdir(path):
+            return AgentResult(status="failed", summary=f"{rec.get('filename')} isn't a document I can search.")
+        if _is_cloud_placeholder(path):
+            return AgentResult(status="failed", summary=f"{rec.get('filename')} is online-only; open it once to download it.")
+        text = await asyncio.to_thread(extract_text, path, 3_000_000)
+        if not text.strip():
+            return AgentResult(status="failed", summary=f"I can't read the text of {rec.get('filename')}.")
+        MEMORY.focus = rec
+        hits = file_ops.find_passages(text, query, max(1, min(8, int(args.get("max_hits") or 5))))
+        name = rec.get("filename")
+        if not hits:
+            return AgentResult(status="done", data={"file": _public(rec), "passages": []},
+                               summary=f"Nothing about '{query}' in {name} ({len(text.split()):,} words searched).")
+        return AgentResult(status="done", data={"file": _public(rec), "passages": hits},
+                           summary=f"{len(hits)} passage{'s' if len(hits) != 1 else ''} about '{query}' in {name}, "
+                                   f"best {hits[0]['position']}: {hits[0]['text'][:160]}…")
+
+    # ── Writing, moving, copying (journal + undo in file_ops) ──
+    def _target_for_write(self, args: dict, ctx: dict) -> Tuple[Optional[Path], Optional[str]]:
+        name = os.path.basename(str(args.get("name") or "").strip().strip('"'))
+        if not name:
+            return None, "What should the file be called?"
+        if "." not in name:
+            name += ".md"
+        folder_arg = str(args.get("folder") or "").strip()
+        prov = ctx.get("provenance")
+        first = Path(folder_arg).parts[0] if folder_arg else ""
+        if folder_arg and prov is not None and not prov.trusted_mentions(folder_arg) and not prov.trusted_mentions(first):
+            # Seen live: the model chose "Documents" by itself. Only a folder the operator named counts.
+            folder_arg = ""
+        folder, problem = file_ops.resolve_dir(folder_arg, file_ops.default_save_dir(), prov)
+        if problem:
+            return None, problem
+        return folder / name, None
+
+    async def write_preview(self, args: dict, ctx: dict) -> AgentResult:
+        path, problem = self._target_for_write(args, ctx)
+        if problem:
+            return AgentResult(status="failed", summary=problem)
+        if path.exists():
+            return AgentResult(status="done", data={"path": str(path)},
+                               summary=f"Replace {path.name} in {path.parent} ({_human_size(path.stat().st_size)}) "
+                                       "with the new text? The old version is kept, and 'undo' brings it back.")
+        return AgentResult(status="done", data={"path": str(path)}, summary=f"Save {path.name} in {path.parent}?")
+
+    async def write_file(self, args: dict, ctx: dict) -> AgentResult:
+        path, problem = self._target_for_write(args, ctx)
+        if problem:
+            return AgentResult(status="failed", summary=problem)
+        content = str(args.get("content") or "")
+        if not content.strip():
+            return AgentResult(status="failed", summary="There's nothing to write.")
+        if path.exists() and args.get("overwrite") and not ctx.get("confirmed") and "run_id" in ctx:
+            return AgentResult(status="failed", summary="Replacing an existing file needs the operator's go-ahead.")
+        op, problem = await asyncio.to_thread(file_ops.write_text, path, content,
+                                              overwrite=bool(args.get("overwrite")), append=bool(args.get("append")))
+        if problem:
+            return AgentResult(status="failed", summary=problem)
+        file_ops.FileJournal.record([op], f"write {path.name}")
+        MEMORY.bump_folder(str(path), 0.5)
+        verb = {"create": "Saved", "overwrite": "Appended to" if args.get("append") else "Replaced"}[op["op"]]
+        return AgentResult(status="done", summary=f"{verb} {path.name} in {path.parent}",
+                           data={"path": str(path), "bytes": len(content.encode('utf-8'))})
+
+    def _sources(self, args: dict, ctx: dict) -> Tuple[List[dict], Optional[str]]:
+        if not args.get("sources") and args.get("from_folder"):
+            return self._folder_selection(args, ctx)
+        recs = []
+        for raw in [str(x) for x in (args.get("sources") or []) if str(x).strip()][:200]:
+            key = {"result": raw} if re.fullmatch(r"(?:doc_)?\d+|it|that|this", raw.strip().lower()) else {"path": raw}
+            rec, problem = self._resolve(key, ctx)
+            if problem:
+                return [], f"{raw}: {problem.summary}"
+            if not rec.get("path"):
+                return [], f"{rec.get('filename')} is only in Google Drive; I can only move files on this PC."
+            recs.append(rec)
+        if not recs:
+            return [], "Which files? Search for them first."
+        return recs, None
+
+    def _folder_selection(self, args: dict, ctx: dict) -> Tuple[List[dict], Optional[str]]:
+        """'The PDFs in Downloads': the direct contents of one folder, filtered by type."""
+        folder, problem = file_ops.resolve_dir(str(args.get("from_folder")), None, ctx.get("provenance"))
+        if problem:
+            return [], problem
+        if not folder.is_dir():
+            return [], f"There's no folder at {folder}."
+        exts = set(filters_from_args({"file_types": args.get("file_types") or []}).get("exts") or [])
+        recs = []
+        for entry in sorted(os.scandir(folder), key=lambda e: e.name.lower()):
+            if entry.is_file() and (not exts or os.path.splitext(entry.name)[1].lower() in exts):
+                recs.append(self._record(entry.path, entry.name, folder, {}))
+        if not recs:
+            kinds = ", ".join(args.get("file_types") or []) or "files"
+            return [], f"There are no {kinds} directly in {folder}."
+        return recs[:500], None
+
+    def _plan_move(self, args: dict, ctx: dict, copy: bool):
+        recs, problem = self._sources(args, ctx)
+        if problem:
+            return None, problem
+        base = Path(recs[0]["path"]).parent
+        new_name = str(args.get("new_name") or "").strip() or None
+        dest_raw = str(args.get("destination") or "").strip()
+        if not dest_raw and not new_name:
+            return None, "Where should they go?"
+        dest, problem = file_ops.resolve_dir(dest_raw, base, ctx.get("provenance"))
+        if problem:
+            return None, problem
+        if new_name and len(recs) > 1:
+            return None, "I can only rename one file at a time."
+        return (recs, dest, new_name), None
+
+    def _move_summary(self, recs, dest, new_name, verb) -> str:
+        names = ", ".join(r.get("filename") for r in recs[:4]) + (f" and {len(recs) - 4} more" if len(recs) > 4 else "")
+        if new_name and dest == Path(recs[0]["path"]).parent:
+            return f"Rename {recs[0].get('filename')} to {new_name}?"
+        return f"{verb} {len(recs)} item{'s' if len(recs) != 1 else ''} ({names}) to {dest}" \
+               + (f" as {new_name}" if new_name else "") + "? 'Undo' puts them back."
+
+    async def move_preview(self, args: dict, ctx: dict) -> AgentResult:
+        plan, problem = self._plan_move(args, ctx, copy=False)
+        if problem:
+            return AgentResult(status="failed", summary=problem)
+        recs, dest, new_name = plan
+        return AgentResult(status="done", summary=self._move_summary(recs, dest, new_name, "Move"),
+                           data={"count": len(recs), "destination": str(dest)})
+
+    async def copy_preview(self, args: dict, ctx: dict) -> AgentResult:
+        plan, problem = self._plan_move(args, ctx, copy=True)
+        if problem:
+            return AgentResult(status="failed", summary=problem)
+        recs, dest, _ = plan
+        return AgentResult(status="done", summary=self._move_summary(recs, dest, None, "Copy"),
+                           data={"count": len(recs), "destination": str(dest)})
+
+    async def _move_or_copy(self, args: dict, ctx: dict, copy: bool) -> AgentResult:
+        plan, problem = self._plan_move(args, ctx, copy=copy)
+        if problem:
+            return AgentResult(status="failed", summary=problem)
+        recs, dest, new_name = plan
+        if (len(recs) > 3 or args.get("from_folder")) and not ctx.get("confirmed") and "run_id" in ctx:
+            return AgentResult(status="failed", summary="Moving that many files needs the operator's go-ahead.")
+        ops, done, problems = await asyncio.to_thread(file_ops.move_or_copy, [r["path"] for r in recs], dest,
+                                                      copy=copy, new_name=new_name)
+        file_ops.FileJournal.record(ops, f"{'copy' if copy else 'move'} {len(done)} to {dest}")
+        if not copy:  # the old result paths are stale now
+            moved = {os.path.normcase(o["src"]): o["dst"] for o in ops if o["op"] == "move"}
+            for r in MEMORY.last_results:
+                if os.path.normcase(r.get("path") or "") in moved:
+                    r["path"] = moved[os.path.normcase(r["path"])]
+                    r["filename"] = os.path.basename(r["path"])
+        if not done:
+            return AgentResult(status="failed", summary="Nothing was " + ("copied" if copy else "moved") + ": "
+                                                        + "; ".join(problems[:5]))
+        verb = "Copied" if copy else ("Renamed" if new_name and dest == Path(recs[0]["path"]).parent else "Moved")
+        tail = f"; skipped {'; '.join(problems[:3])}" if problems else ""
+        return AgentResult(status="done", data={"done": done, "destination": str(dest), "problems": problems},
+                           summary=f"{verb} {len(done)} item{'s' if len(done) != 1 else ''} to {dest}{tail}. Say 'undo' to put them back.")
+
+    async def move_files(self, args: dict, ctx: dict) -> AgentResult:
+        return await self._move_or_copy(args, ctx, copy=False)
+
+    async def copy_files(self, args: dict, ctx: dict) -> AgentResult:
+        return await self._move_or_copy(args, ctx, copy=True)
+
+    async def undo_file_changes(self, args: dict, ctx: dict) -> AgentResult:
+        done, problems = await asyncio.to_thread(file_ops.FileJournal.undo)
+        if not done:
+            return AgentResult(status="failed", summary="Couldn't undo: " + "; ".join(problems))
+        tail = f"; couldn't: {'; '.join(problems[:3])}" if problems else ""
+        return AgentResult(status="done", summary=_capital_first("; ".join(done[:5])) + tail, data={"done": done})
+
     async def favourite_folders(self, args: dict, ctx: dict) -> AgentResult:
         action = str(args.get("action") or "list")
         if action == "list":
@@ -1081,6 +1325,16 @@ async def _none():
 
 _COMMAND_WORDS = {"find", "search", "look", "locate", "show", "open", "get", "pull", "files", "file", "documents",
                   "document", "docs", "notes", "note", "please", "for", "about", "where"}
+
+
+def _days_text(days: float) -> str:
+    if days < 1:
+        return f"{round(days * 24)} hours"
+    return "day" if days == 1 else f"{days:g} days"
+
+
+def _capital_first(text: str) -> str:
+    return text[:1].upper() + text[1:] if text else text
 
 
 def _ranking_note(query: str) -> str:

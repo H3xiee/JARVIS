@@ -782,33 +782,9 @@ class AgentRouter:
         primary_step = non_nav_steps[0] if non_nav_steps else steps[0]
         action = primary_step.get("action")
 
-        if action == "search":
-            q = primary_step.get("query", text_strip)
-            task = self.task_manager.create_task(
-                type_=TaskType.GOOGLE_SEARCH.value,
-                title=f"Google Search: {q}",
-                data={"query": q}
-            )
-            log_intent_decision(cleaned_text or text_strip, "google_search", "google_search")
-            return True, f"Searching Google for '{q}'.", task, "google_search"
-
-        elif action == "diagnostics":
-            task = self.task_manager.create_task(
-                type_=TaskType.SYSTEM_DIAGNOSTIC.value,
-                title="System Diagnostic & Telemetry",
-                data={"query": text_strip}
-            )
-            return True, f"Running full hardware and system diagnostics, {sal}.", task, "system_diagnostic"
-
-        elif action == "top_processes":
-            task = self.task_manager.create_task(
-                type_=TaskType.SYSTEM_CONTROL.value,
-                title="System Control: Process",
-                data={"action_type": "process", "command": text_strip}
-            )
-            return True, f"Executing process system directive, {sal}.", task, "system_control"
-
-        elif action == "briefing":
+        # inbox / calendar / processes / web search / memory belong to the agents now
+        # (core/agents); the cognitive planner no longer emits those actions.
+        if action == "briefing":
             task = self.task_manager.create_task(
                 type_=TaskType.SITUATIONAL_BRIEFING.value,
                 title="Executive Situational Briefing",
@@ -823,15 +799,6 @@ class AgentRouter:
                 data={"query": text_strip}
             )
             return True, f"Auditing repository telemetry and version control status, {sal}.", task, "git_intel"
-
-        elif action == "memory_recall":
-            q = primary_step.get("query", text_strip)
-            task = self.task_manager.create_task(
-                type_=TaskType.MEMORY_RECALL.value,
-                title=f"Memory Recall: {q[:30]}",
-                data={"query": q}
-            )
-            return True, f"Scanning memory logs for related context, {sal}.", task, "memory_recall"
 
         elif action == "flights":
             task = self.task_manager.create_task(
